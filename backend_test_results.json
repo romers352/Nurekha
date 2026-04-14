@@ -1,58 +1,106 @@
 {
   "summary": {
-    "total_tests": 8,
-    "passed_tests": 8,
-    "success_rate": 100.0,
-    "timestamp": "2026-04-14T03:37:40.361735"
+    "total_tests": 16,
+    "passed_tests": 15,
+    "success_rate": 93.75,
+    "timestamp": "2026-04-14T04:14:40.952095"
   },
   "test_results": [
     {
       "test": "API Health Check",
       "success": true,
       "details": "Status: 200, Response: {\"message\":\"Nurekha API v1\"}",
-      "timestamp": "2026-04-14T03:37:39.514566"
+      "timestamp": "2026-04-14T04:14:34.700763"
     },
     {
       "test": "Admin Login",
       "success": true,
       "details": "Logged in as: admin@nurekha.com, Role: admin",
-      "timestamp": "2026-04-14T03:37:39.786775"
+      "timestamp": "2026-04-14T04:14:34.971457"
     },
     {
       "test": "Auth Me Endpoint",
       "success": true,
       "details": "User: admin@nurekha.com, Role: admin",
-      "timestamp": "2026-04-14T03:37:39.836287"
+      "timestamp": "2026-04-14T04:14:35.023636"
     },
     {
       "test": "Dashboard Stats",
       "success": true,
-      "details": "Quota: 100000, Used: 0, Agents: 1",
-      "timestamp": "2026-04-14T03:37:39.887506"
+      "details": "Quota: 100000, Used: 0, Agents: 4",
+      "timestamp": "2026-04-14T04:14:35.070829"
     },
     {
       "test": "List Agents",
       "success": true,
-      "details": "Found 1 agents",
-      "timestamp": "2026-04-14T03:37:39.935354"
+      "details": "Found 4 agents",
+      "timestamp": "2026-04-14T04:14:35.116540"
+    },
+    {
+      "test": "Billing Plans",
+      "success": true,
+      "details": "Found 3 plans: ['free', 'pro', 'enterprise']",
+      "timestamp": "2026-04-14T04:14:35.164453"
+    },
+    {
+      "test": "Billing Initiate Khalti",
+      "success": true,
+      "details": "Payment ID: 789b3f71-74e..., Has URL: True",
+      "timestamp": "2026-04-14T04:14:36.234684"
+    },
+    {
+      "test": "Billing Initiate eSewa",
+      "success": true,
+      "details": "Payment ID: 1814f0bc-6f2..., Has eSewa form: True",
+      "timestamp": "2026-04-14T04:14:36.285361"
+    },
+    {
+      "test": "Billing Verify",
+      "success": true,
+      "details": "Status: failed",
+      "timestamp": "2026-04-14T04:14:37.260974"
+    },
+    {
+      "test": "Billing History",
+      "success": true,
+      "details": "Found 4 payment records",
+      "timestamp": "2026-04-14T04:14:37.315347"
+    },
+    {
+      "test": "List Orders",
+      "success": true,
+      "details": "Found 3 orders",
+      "timestamp": "2026-04-14T04:14:37.413065"
+    },
+    {
+      "test": "Update Order Status",
+      "success": true,
+      "details": "Updated order ORD-5ACA7250... to status: confirmed",
+      "timestamp": "2026-04-14T04:14:37.467131"
+    },
+    {
+      "test": "WebSocket Connection",
+      "success": false,
+      "details": "Connected: False, Message received: False",
+      "timestamp": "2026-04-14T04:14:40.573258"
     },
     {
       "test": "Forgot Password",
       "success": true,
       "details": "Forgot password request accepted",
-      "timestamp": "2026-04-14T03:37:40.044250"
+      "timestamp": "2026-04-14T04:14:40.633928"
     },
     {
       "test": "User Registration",
       "success": true,
-      "details": "Registered user: test033740@example.com",
-      "timestamp": "2026-04-14T03:37:40.314422"
+      "details": "Registered user: test041440@example.com",
+      "timestamp": "2026-04-14T04:14:40.902449"
     },
     {
       "test": "Logout",
       "success": true,
       "details": "Logout successful",
-      "timestamp": "2026-04-14T03:37:40.361599"
+      "timestamp": "2026-04-14T04:14:40.951947"
     }
   ]
 }

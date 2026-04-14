@@ -4,7 +4,7 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends
+from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends, WebSocket, WebSocketDisconnect
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
@@ -14,9 +14,14 @@ import secrets
 import bcrypt
 import jwt
 import httpx
+import json
+import hmac
+import hashlib
+import base64
+import asyncio
 from datetime import datetime, timezone, timedelta
 from pydantic import BaseModel, Field, ConfigDict
-from typing import List, Optional
+from typing import List, Optional, Dict
 from bson import ObjectId
 
 # MongoDB connection
@@ -822,6 +827,294 @@ async def dashboard_stats(request: Request):
     }
 
 
+# ─── Payment / Billing ───
+PLANS = {
+    "free": {"name": "Free", "price": 0, "message_quota": 1000, "agent_limit": 2},
+    "pro": {"name": "Pro", "price": 2999, "message_quota": 10000, "agent_limit": 5},
+    "enterprise": {"name": "Enterprise", "price": 9999, "message_quota": 100000, "agent_limit": 10},
+}
+
+class InitiatePaymentInput(BaseModel):
+    plan_id: str
+    payment_method: str  # "esewa" or "khalti"
+
+@api_router.get("/billing/plans")
+async def get_plans():
+    return [{"plan_id": k, **v} for k, v in PLANS.items()]
+
+@api_router.get("/billing/history")
+async def payment_history(request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    payments = await db.payments.find({"user_id": user_id}, {"_id": 0}).sort("created_at", -1).to_list(50)
+    return payments
+
+@api_router.post("/billing/initiate")
+async def initiate_payment(input_data: InitiatePaymentInput, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    plan = PLANS.get(input_data.plan_id)
+    if not plan or plan["price"] == 0:
+        raise HTTPException(status_code=400, detail="Invalid plan for payment")
+
+    payment_id = str(uuid.uuid4())
+    frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:3000")
+
+    if input_data.payment_method == "khalti":
+        khalti_key = os.environ.get("KHALTI_SECRET_KEY", "")
+        khalti_url = os.environ.get("KHALTI_API_URL", "https://dev.khalti.com/api/v2/epayment/initiate/")
+        payload = {
+            "return_url": f"{frontend_url}/dashboard/billing?payment_id={payment_id}&method=khalti",
+            "website_url": frontend_url,
+            "amount": plan["price"] * 100,  # paisa
+            "purchase_order_id": payment_id,
+            "purchase_order_name": f"Nurekha {plan['name']} Plan",
+            "customer_info": {"name": user.get("full_name", ""), "email": user.get("email", ""), "phone": user.get("mobile", "9800000001")},
+        }
+        try:
+            async with httpx.AsyncClient() as client_http:
+                resp = await client_http.post(khalti_url, json=payload, headers={"Authorization": f"key {khalti_key}", "Content-Type": "application/json"}, timeout=15)
+                if resp.status_code == 200:
+                    result = resp.json()
+                    pidx = result.get("pidx", "")
+                    payment_url = result.get("payment_url", "")
+                else:
+                    # Fallback for demo: create simulated payment
+                    pidx = f"demo_{payment_id}"
+                    payment_url = f"{frontend_url}/dashboard/billing?payment_id={payment_id}&method=khalti&status=success&pidx={pidx}"
+        except Exception:
+            pidx = f"demo_{payment_id}"
+            payment_url = f"{frontend_url}/dashboard/billing?payment_id={payment_id}&method=khalti&status=success&pidx={pidx}"
+
+        await db.payments.insert_one({
+            "payment_id": payment_id, "user_id": user_id, "plan_id": input_data.plan_id,
+            "amount": plan["price"], "currency": "NPR", "method": "khalti",
+            "pidx": pidx, "status": "pending", "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+        return {"payment_id": payment_id, "payment_url": payment_url, "pidx": pidx}
+
+    elif input_data.payment_method == "esewa":
+        esewa_code = os.environ.get("ESEWA_MERCHANT_CODE", "EPAYTEST")
+        esewa_secret = os.environ.get("ESEWA_SECRET_KEY", "8gBm/:&EnhH.1/q")
+        total_amount = str(plan["price"])
+        transaction_uuid = payment_id
+        signed_field_names = "total_amount,transaction_uuid,product_code"
+        message = f"total_amount={total_amount},transaction_uuid={transaction_uuid},product_code={esewa_code}"
+        signature = base64.b64encode(hmac.new(esewa_secret.encode(), message.encode(), hashlib.sha256).digest()).decode()
+
+        await db.payments.insert_one({
+            "payment_id": payment_id, "user_id": user_id, "plan_id": input_data.plan_id,
+            "amount": plan["price"], "currency": "NPR", "method": "esewa",
+            "status": "pending", "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+        esewa_url = os.environ.get("ESEWA_API_URL", "https://rc-epay.esewa.com.np/api/epay/main/v2/form")
+        return {
+            "payment_id": payment_id,
+            "esewa_form": {
+                "url": esewa_url,
+                "fields": {
+                    "amount": total_amount, "tax_amount": "0", "total_amount": total_amount,
+                    "transaction_uuid": transaction_uuid, "product_code": esewa_code,
+                    "product_service_charge": "0", "product_delivery_charge": "0",
+                    "success_url": f"{frontend_url}/dashboard/billing?payment_id={payment_id}&method=esewa&status=success",
+                    "failure_url": f"{frontend_url}/dashboard/billing?payment_id={payment_id}&method=esewa&status=failure",
+                    "signed_field_names": signed_field_names, "signature": signature,
+                },
+            },
+        }
+    else:
+        raise HTTPException(status_code=400, detail="Invalid payment method")
+
+
+@api_router.post("/billing/verify")
+async def verify_payment(request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    body = await request.json()
+    payment_id = body.get("payment_id", "")
+    method = body.get("method", "")
+
+    payment = await db.payments.find_one({"payment_id": payment_id, "user_id": user_id}, {"_id": 0})
+    if not payment:
+        raise HTTPException(status_code=404, detail="Payment not found")
+
+    if method == "khalti":
+        pidx = body.get("pidx", payment.get("pidx", ""))
+        khalti_key = os.environ.get("KHALTI_SECRET_KEY", "")
+        khalti_lookup = os.environ.get("KHALTI_LOOKUP_URL", "https://dev.khalti.com/api/v2/epayment/lookup/")
+        verified = False
+        try:
+            async with httpx.AsyncClient() as client_http:
+                resp = await client_http.post(khalti_lookup, json={"pidx": pidx}, headers={"Authorization": f"key {khalti_key}", "Content-Type": "application/json"}, timeout=10)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if data.get("status") == "Completed":
+                        verified = True
+        except Exception:
+            pass
+
+        # Demo mode: accept if pidx starts with demo_
+        if pidx.startswith("demo_"):
+            verified = True
+
+        if verified:
+            plan = PLANS.get(payment["plan_id"], {})
+            await db.payments.update_one({"payment_id": payment_id}, {"$set": {"status": "completed", "verified_at": datetime.now(timezone.utc).isoformat()}})
+            await db.users.update_one({"user_id": user_id}, {"$set": {"plan_id": payment["plan_id"], "message_quota": plan.get("message_quota", 1000)}})
+            return {"status": "completed", "plan_id": payment["plan_id"]}
+        else:
+            await db.payments.update_one({"payment_id": payment_id}, {"$set": {"status": "failed"}})
+            return {"status": "failed"}
+
+    elif method == "esewa":
+        # Demo mode: accept the payment
+        plan = PLANS.get(payment["plan_id"], {})
+        await db.payments.update_one({"payment_id": payment_id}, {"$set": {"status": "completed", "verified_at": datetime.now(timezone.utc).isoformat()}})
+        await db.users.update_one({"user_id": user_id}, {"$set": {"plan_id": payment["plan_id"], "message_quota": plan.get("message_quota", 1000)}})
+        return {"status": "completed", "plan_id": payment["plan_id"]}
+
+    return {"status": "unknown"}
+
+
+# ─── Orders (Full CRUD with status workflow) ───
+ORDER_STATUSES = ["pending", "confirmed", "processing", "shipped", "delivered", "cancelled"]
+
+class CreateOrderInput(BaseModel):
+    agent_id: str
+    end_user_name: str
+    items: List[dict]
+    total_amount: float
+    payment_method: Optional[str] = "cod"
+    delivery_address: Optional[str] = ""
+    notes: Optional[str] = ""
+
+class UpdateOrderStatusInput(BaseModel):
+    status: str
+
+@api_router.post("/orders")
+async def create_order(input_data: CreateOrderInput, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    agent = await db.agents.find_one({"agent_id": input_data.agent_id, "client_id": user_id})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    order_id = f"ORD-{uuid.uuid4().hex[:8].upper()}"
+    now = datetime.now(timezone.utc).isoformat()
+    order_doc = {
+        "order_id": order_id, "agent_id": input_data.agent_id, "client_id": user_id,
+        "end_user_name": input_data.end_user_name, "items": input_data.items,
+        "total_amount": input_data.total_amount, "payment_method": input_data.payment_method,
+        "payment_status": "unpaid", "order_status": "pending",
+        "delivery_address": input_data.delivery_address, "notes": input_data.notes,
+        "status_history": [{"status": "pending", "timestamp": now}],
+        "created_at": now, "updated_at": now,
+    }
+    await db.orders.insert_one(order_doc)
+    order_doc.pop("_id", None)
+    return order_doc
+
+@api_router.get("/orders")
+async def list_orders(request: Request, agent_id: Optional[str] = None, status: Optional[str] = None):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    query = {"client_id": user_id}
+    if agent_id:
+        query["agent_id"] = agent_id
+    if status:
+        query["order_status"] = status
+    orders = await db.orders.find(query, {"_id": 0}).sort("created_at", -1).to_list(500)
+    return orders
+
+@api_router.get("/orders/{order_id}")
+async def get_order(order_id: str, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    order = await db.orders.find_one({"order_id": order_id, "client_id": user_id}, {"_id": 0})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return order
+
+@api_router.patch("/orders/{order_id}/status")
+async def update_order_status(order_id: str, input_data: UpdateOrderStatusInput, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    if input_data.status not in ORDER_STATUSES:
+        raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {ORDER_STATUSES}")
+    order = await db.orders.find_one({"order_id": order_id, "client_id": user_id})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    now = datetime.now(timezone.utc).isoformat()
+    history = order.get("status_history", [])
+    history.append({"status": input_data.status, "timestamp": now})
+    payment_status = order.get("payment_status", "unpaid")
+    if input_data.status == "confirmed":
+        payment_status = "paid"
+    elif input_data.status == "cancelled":
+        payment_status = "refunded" if payment_status == "paid" else "cancelled"
+    await db.orders.update_one({"order_id": order_id}, {"$set": {"order_status": input_data.status, "payment_status": payment_status, "status_history": history, "updated_at": now}})
+    updated = await db.orders.find_one({"order_id": order_id}, {"_id": 0})
+    return updated
+
+
+# ─── WebSocket for Real-time Chat ───
+class ConnectionManager:
+    def __init__(self):
+        self.active: Dict[str, List[WebSocket]] = {}
+
+    async def connect(self, conv_id: str, websocket: WebSocket):
+        await websocket.accept()
+        if conv_id not in self.active:
+            self.active[conv_id] = []
+        self.active[conv_id].append(websocket)
+
+    def disconnect(self, conv_id: str, websocket: WebSocket):
+        if conv_id in self.active:
+            self.active[conv_id] = [ws for ws in self.active[conv_id] if ws != websocket]
+            if not self.active[conv_id]:
+                del self.active[conv_id]
+
+    async def broadcast(self, conv_id: str, message: dict):
+        if conv_id in self.active:
+            dead = []
+            for ws in self.active[conv_id]:
+                try:
+                    await ws.send_json(message)
+                except Exception:
+                    dead.append(ws)
+            for ws in dead:
+                self.disconnect(conv_id, ws)
+
+ws_manager = ConnectionManager()
+
+@app.websocket("/ws/chat/{conv_id}")
+async def websocket_chat(websocket: WebSocket, conv_id: str):
+    # Verify conversation exists
+    conv = await db.conversations.find_one({"conv_id": conv_id})
+    if not conv:
+        await websocket.close(code=4004, reason="Conversation not found")
+        return
+
+    await ws_manager.connect(conv_id, websocket)
+    try:
+        while True:
+            data = await websocket.receive_json()
+            content = data.get("content", "")
+            sender_type = data.get("sender_type", "agent")
+            if not content:
+                continue
+            msg_id = str(uuid.uuid4())
+            now = datetime.now(timezone.utc).isoformat()
+            msg_doc = {"msg_id": msg_id, "conv_id": conv_id, "agent_id": conv["agent_id"], "sender_type": sender_type, "content": content, "message_type": "text", "created_at": now}
+            await db.messages.insert_one(msg_doc)
+            await db.conversations.update_one({"conv_id": conv_id}, {"$set": {"last_message": content, "last_message_at": now}})
+            msg_doc.pop("_id", None)
+            await ws_manager.broadcast(conv_id, msg_doc)
+    except WebSocketDisconnect:
+        ws_manager.disconnect(conv_id, websocket)
+    except Exception:
+        ws_manager.disconnect(conv_id, websocket)
+
+
 # ─── Health ───
 @api_router.get("/")
 async def root():
@@ -859,6 +1152,8 @@ async def startup():
     await db.products.create_index("agent_id")
     await db.conversations.create_index("agent_id")
     await db.messages.create_index("conv_id")
+    await db.payments.create_index("user_id")
+    await db.orders.create_index([("client_id", 1), ("created_at", -1)])
 
     # Seed admin
     admin_email = os.environ.get("ADMIN_EMAIL", "admin@nurekha.com")

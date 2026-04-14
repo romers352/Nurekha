@@ -1,14 +1,16 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, MessageSquare, Send, Paperclip, PauseCircle,
   ArrowUp, ChevronLeft, Facebook, Instagram, MessageCircle, Music2, Globe,
+  Wifi, WifiOff,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import axios from "axios";
 
 const API = process.env.REACT_APP_BACKEND_URL;
+const WS_URL = API.replace("https://", "wss://").replace("http://", "ws://");
 
 const channelIcons = { facebook: Facebook, instagram: Instagram, whatsapp: MessageCircle, tiktok: Music2, website: Globe };
 const channelColors = { facebook: "#1877F2", instagram: "#E4405F", whatsapp: "#25D366", tiktok: "#010101", website: "#6366F1" };
@@ -120,14 +122,16 @@ export default function BusinessChatPage() {
   const [search, setSearch] = useState("");
   const [channelFilter, setChannelFilter] = useState("all");
   const [showList, setShowList] = useState(true);
+  const [wsConnected, setWsConnected] = useState(false);
   const messagesEndRef = useRef(null);
+  const wsRef = useRef(null);
 
-  const fetchConversations = async () => {
+  const fetchConversations = useCallback(async () => {
     try {
       const { data } = await axios.get(`${API}/api/agents/${agentId}/conversations`, { withCredentials: true });
       setConversations(data);
     } catch {}
-  };
+  }, [agentId]);
 
   const fetchMessages = async (convId) => {
     try {
@@ -136,7 +140,43 @@ export default function BusinessChatPage() {
     } catch {}
   };
 
-  useEffect(() => { fetchConversations(); }, [agentId]);
+  // WebSocket connection
+  useEffect(() => {
+    if (!activeConv) {
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+        setWsConnected(false);
+      }
+      return;
+    }
+
+    const convId = activeConv.conv_id;
+    const ws = new WebSocket(`${WS_URL}/ws/chat/${convId}`);
+    wsRef.current = ws;
+
+    ws.onopen = () => setWsConnected(true);
+    ws.onclose = () => setWsConnected(false);
+    ws.onerror = () => setWsConnected(false);
+
+    ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        setMessages(prev => {
+          if (prev.some(m => m.msg_id === msg.msg_id)) return prev;
+          return [...prev, msg];
+        });
+        fetchConversations();
+      } catch {}
+    };
+
+    return () => {
+      ws.close();
+      setWsConnected(false);
+    };
+  }, [activeConv, fetchConversations]);
+
+  useEffect(() => { fetchConversations(); }, [fetchConversations]);
   useEffect(() => { if (activeConv) fetchMessages(activeConv.conv_id); }, [activeConv]);
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
@@ -148,6 +188,16 @@ export default function BusinessChatPage() {
   const sendMessage = async () => {
     if (!inputText.trim() || !activeConv) return;
     setSending(true);
+
+    // Try WebSocket first
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ content: inputText, sender_type: "agent" }));
+      setInputText("");
+      setSending(false);
+      return;
+    }
+
+    // Fallback to HTTP
     try {
       await axios.post(`${API}/api/agents/${agentId}/conversations/${activeConv.conv_id}/messages`, { content: inputText, sender_type: "agent" }, { withCredentials: true });
       setInputText("");
@@ -245,6 +295,12 @@ export default function BusinessChatPage() {
                 <p className="text-sm font-medium text-[#0C0A09] truncate">{activeConv.end_user_name}</p>
               </div>
               <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1" data-testid="ws-status">
+                  {wsConnected ? <Wifi className="w-3 h-3 text-[#166534]" /> : <WifiOff className="w-3 h-3 text-[#A8A29E]" />}
+                  <span className={`text-[10px] ${wsConnected ? "text-[#166534]" : "text-[#A8A29E]"}`}>
+                    {wsConnected ? "Live" : "Offline"}
+                  </span>
+                </div>
                 <span className={`text-xs ${activeConv.ai_enabled ? "text-[#166534]" : "text-[#A8A29E]"}`}>
                   {activeConv.ai_enabled ? "AI handling" : "AI paused"}
                 </span>
