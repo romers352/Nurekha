@@ -5,26 +5,30 @@
 - **Backend**: FastAPI + MongoDB + WebSocket
 - **Auth**: JWT + Emergent Google OAuth
 - **Payments**: eSewa (sandbox) + Khalti (sandbox)
-- **Design**: White+Black editorial, Instrument Serif + Geist
 
-## What's Been Implemented
+## All Implemented Pages
 
-### Phase 1 - Landing Page ✅
-### Phase 2 - Auth + Client Dashboard ✅
-### Phase 3 - Agent Dashboard + Channels + Training + Chat ✅
-### Phase 4 - Billing + Orders + WebSocket ✅
-- Billing: 3 plans (Free/Pro/Enterprise), eSewa + Khalti test integration, payment history
-- Orders: Full CRUD with status workflow (pending→confirmed→processing→shipped→delivered), create order with items/payment/delivery
-- WebSocket: Real-time messaging with connection status indicator
+### Public Pages
+- Landing Page (Navbar, Hero, Channels, Features, How It Works, Business Types, CTA, Footer)
+- Pricing Page (credit-based: message packs + agent slots, FAQ section)
+- Services Page (6 detailed service cards)
+- Login, Signup, Forgot/Reset Password
 
-## Backlog
-### P0
-- Admin panel
-- WhatsApp Business API real integration
-### P1
-- Analytics dashboard with Recharts
-- File upload with object storage
-- Email notifications (SendGrid/Resend)
-### P2
-- Multi-language support (Nepali)
-- Mobile PWA
+### Client Dashboard
+- Overview (stat cards, agent table, quick actions)
+- My Agents (create/delete agents, card grid, empty state)
+- Billing (credit-based: current usage, buy message packs, buy agent slots, payment history)
+- Support (create/view/reply tickets, priority levels)
+- Settings (Profile edit, Change password, Notification preferences)
+
+### Agent Dashboard
+- Overview (stats, quick actions)
+- Connect Channels (5 channels: FB/IG/WA/TT/Website with connect/disconnect)
+- Train Agent (5 tabs: Business Info, FAQs with CSV bulk import, Documents upload/scrape, Products with CSV bulk import + detailed form, Test Agent chat)
+- Business Chat (3-panel: conversation list with filters, chat with WebSocket, user profile)
+- Orders (full CRUD, status workflow, refund, create order dialog)
+- Agent Settings (greeting/fallback messages, reply delay, handoff keywords, collect info toggle)
+- Uploaded Data (placeholder)
+
+## Backend Endpoints (50+)
+Auth, Agents CRUD, Channels, Training (Business Info, FAQs, Documents, Products), Bulk Imports, Test Chat, Conversations, Messages, WebSocket, Billing/Credits, Orders with Refund, Support Tickets, User Profile
