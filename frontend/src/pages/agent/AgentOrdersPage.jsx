@@ -21,7 +21,7 @@ const STATUS_CONFIG = {
 
 const NEXT_STATUS = { pending: "confirmed", confirmed: "processing", processing: "shipped", shipped: "delivered" };
 
-function OrderRow({ order, onStatusUpdate, onView }) {
+function OrderRow({ order, onStatusUpdate, onView, onRefund }) {
   const sc = STATUS_CONFIG[order.order_status] || STATUS_CONFIG.pending;
   const Icon = sc.icon;
   const nextStatus = NEXT_STATUS[order.order_status];
@@ -55,6 +55,15 @@ function OrderRow({ order, onStatusUpdate, onView }) {
             {STATUS_CONFIG[nextStatus]?.label} <ArrowRight className="w-3 h-3" />
           </button>
         )}
+        {order.payment_status === "paid" && order.order_status !== "cancelled" && (
+          <button
+            data-testid={`refund-${order.order_id}`}
+            onClick={() => onRefund(order.order_id)}
+            className="h-8 px-3 border border-[#FDE68A] text-[#92400E] rounded-lg text-xs hover:bg-[#FFFBEB]"
+          >
+            Refund
+          </button>
+        )}
         {order.order_status !== "cancelled" && order.order_status !== "delivered" && (
           <button
             data-testid={`cancel-${order.order_id}`}
@@ -63,6 +72,9 @@ function OrderRow({ order, onStatusUpdate, onView }) {
           >
             Cancel
           </button>
+        )}
+        {order.refund_id && (
+          <span className="text-xs text-[#92400E] bg-[#FFFBEB] rounded-full px-2 py-0.5">Refunded</span>
         )}
       </div>
     </motion.div>
@@ -119,6 +131,14 @@ export default function AgentOrdersPage() {
   const handleStatusUpdate = async (orderId, status) => {
     try {
       await axios.patch(`${API}/api/orders/${orderId}/status`, { status }, { withCredentials: true });
+      fetchOrders();
+    } catch (err) { console.error(err); }
+  };
+
+  const handleRefund = async (orderId) => {
+    const reason = prompt("Refund reason (optional):");
+    try {
+      await axios.post(`${API}/api/orders/${orderId}/refund`, { reason: reason || "Customer request" }, { withCredentials: true });
       fetchOrders();
     } catch (err) { console.error(err); }
   };
@@ -195,7 +215,7 @@ export default function AgentOrdersPage() {
       ) : (
         <div className="space-y-3">
           {filtered.map(order => (
-            <OrderRow key={order.order_id} order={order} onStatusUpdate={handleStatusUpdate} onView={() => setDetailOrder(order)} />
+            <OrderRow key={order.order_id} order={order} onStatusUpdate={handleStatusUpdate} onView={() => setDetailOrder(order)} onRefund={handleRefund} />
           ))}
         </div>
       )}

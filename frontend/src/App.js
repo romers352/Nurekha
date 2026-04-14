@@ -8,6 +8,8 @@ import LoginPage from "@/pages/LoginPage";
 import SignupPage from "@/pages/SignupPage";
 import ForgotPasswordPage from "@/pages/ForgotPasswordPage";
 import ResetPasswordPage from "@/pages/ResetPasswordPage";
+import PricingPage from "@/pages/PricingPage";
+import ServicesPage from "@/pages/ServicesPage";
 import DashboardLayout from "@/pages/DashboardLayout";
 import DashboardOverview from "@/pages/DashboardOverview";
 import AgentsPage from "@/pages/AgentsPage";
@@ -39,6 +41,8 @@ function AppRouter() {
       <Route path="/signup" element={<SignupPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/pricing" element={<PricingPage />} />
+      <Route path="/services" element={<ServicesPage />} />
 
       {/* Protected Dashboard */}
       <Route

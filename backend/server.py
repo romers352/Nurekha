@@ -1115,6 +1115,263 @@ async def websocket_chat(websocket: WebSocket, conv_id: str):
         ws_manager.disconnect(conv_id, websocket)
 
 
+# ─── Bulk Upload: FAQs CSV ───
+@api_router.post("/agents/{agent_id}/training/faqs/bulk")
+async def bulk_upload_faqs(agent_id: str, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id})
+    if not agent:
+        raise HTTPException(status_code=400, detail="Agent not found")
+    body = await request.json()
+    faqs_data = body.get("faqs", [])
+    created = []
+    for item in faqs_data:
+        q = item.get("question", "").strip()
+        a = item.get("answer", "").strip()
+        if q and a:
+            faq_id = str(uuid.uuid4())
+            doc = {"faq_id": faq_id, "agent_id": agent_id, "question": q, "answer": a, "order": 0, "created_at": datetime.now(timezone.utc).isoformat()}
+            await db.faqs.insert_one(doc)
+            doc.pop("_id", None)
+            created.append(doc)
+    return {"imported": len(created), "faqs": created}
+
+# ─── Bulk Upload: Products CSV ───
+@api_router.post("/agents/{agent_id}/training/products/bulk")
+async def bulk_upload_products(agent_id: str, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id})
+    if not agent:
+        raise HTTPException(status_code=400, detail="Agent not found")
+    body = await request.json()
+    products_data = body.get("products", [])
+    created = []
+    for item in products_data:
+        name = item.get("name", "").strip()
+        if name:
+            product_id = str(uuid.uuid4())
+            doc = {"product_id": product_id, "agent_id": agent_id, "name": name, "price": float(item.get("price", 0)), "stock": int(item.get("stock", 0)), "category": item.get("category", ""), "description": item.get("description", ""), "image_url": item.get("image_url", ""), "sku": item.get("sku", ""), "variants": item.get("variants", []), "is_active": True, "created_at": datetime.now(timezone.utc).isoformat()}
+            await db.products.insert_one(doc)
+            doc.pop("_id", None)
+            created.append(doc)
+    return {"imported": len(created), "products": created}
+
+
+# ─── Test Agent Chat (AI mock using FAQs) ───
+@api_router.post("/agents/{agent_id}/test-chat")
+async def test_agent_chat(agent_id: str, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id}, {"_id": 0})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    body = await request.json()
+    user_message = body.get("message", "").strip().lower()
+    if not user_message:
+        return {"response": agent.get("greeting_message", "Hello! How can I help you?")}
+    # Search FAQs for best match
+    faqs = await db.faqs.find({"agent_id": agent_id}, {"_id": 0}).to_list(500)
+    best_match = None
+    best_score = 0
+    for faq in faqs:
+        q_words = set(faq["question"].lower().split())
+        msg_words = set(user_message.split())
+        overlap = len(q_words & msg_words)
+        if overlap > best_score:
+            best_score = overlap
+            best_match = faq
+    # Search products
+    products = await db.products.find({"agent_id": agent_id}, {"_id": 0}).to_list(100)
+    product_match = None
+    for p in products:
+        if p["name"].lower() in user_message or any(w in user_message for w in p["name"].lower().split()):
+            product_match = p
+            break
+    if best_match and best_score >= 2:
+        return {"response": best_match["answer"], "source": "FAQ", "matched_question": best_match["question"]}
+    elif product_match:
+        return {"response": f"We have {product_match['name']} available at NPR {product_match.get('price', 0):,.0f}. {product_match.get('description', '')} Would you like to order?", "source": "Product", "matched_product": product_match["name"]}
+    elif any(w in user_message for w in ["hi", "hello", "hey", "namaste"]):
+        return {"response": agent.get("greeting_message", "Hello! How can I help you today?"), "source": "Greeting"}
+    elif any(w in user_message for w in ["price", "cost", "how much", "rate"]):
+        if products:
+            product_list = ", ".join([f"{p['name']} (NPR {p.get('price', 0):,.0f})" for p in products[:5]])
+            return {"response": f"Here are our products: {product_list}. Would you like to know more about any of them?", "source": "Products"}
+    elif any(w in user_message for w in ["order", "buy", "purchase"]):
+        return {"response": "I'd be happy to help you place an order! What would you like to order?", "source": "Intent"}
+    elif any(w in user_message for w in ["hours", "open", "close", "time"]):
+        biz_info = await db.business_info.find_one({"agent_id": agent_id}, {"_id": 0})
+        if biz_info and biz_info.get("business_hours"):
+            hrs = biz_info["business_hours"]
+            open_days = [f"{d}: {h.get('open','09:00')}-{h.get('close','18:00')}" for d, h in hrs.items()]
+            return {"response": f"Our business hours are:\n" + "\n".join(open_days), "source": "Business Info"}
+    return {"response": agent.get("fallback_message", "I'm not sure about that. Let me connect you with our team."), "source": "Fallback"}
+
+
+# ─── Support Tickets ───
+class TicketInput(BaseModel):
+    subject: str
+    message: str
+    priority: Optional[str] = "medium"
+
+@api_router.post("/support/tickets")
+async def create_ticket(input_data: TicketInput, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    ticket_id = f"TKT-{uuid.uuid4().hex[:8].upper()}"
+    now = datetime.now(timezone.utc).isoformat()
+    ticket = {"ticket_id": ticket_id, "user_id": user_id, "user_name": user.get("full_name", ""), "user_email": user.get("email", ""), "subject": input_data.subject, "message": input_data.message, "priority": input_data.priority, "status": "open", "replies": [], "created_at": now, "updated_at": now}
+    await db.tickets.insert_one(ticket)
+    ticket.pop("_id", None)
+    return ticket
+
+@api_router.get("/support/tickets")
+async def list_tickets(request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    tickets = await db.tickets.find({"user_id": user_id}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return tickets
+
+@api_router.post("/support/tickets/{ticket_id}/reply")
+async def reply_ticket(ticket_id: str, request: Request):
+    user = await get_current_user(request)
+    body = await request.json()
+    reply = {"sender": user.get("full_name", "User"), "message": body.get("message", ""), "created_at": datetime.now(timezone.utc).isoformat()}
+    await db.tickets.update_one({"ticket_id": ticket_id}, {"$push": {"replies": reply}, "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}})
+    ticket = await db.tickets.find_one({"ticket_id": ticket_id}, {"_id": 0})
+    return ticket
+
+@api_router.patch("/support/tickets/{ticket_id}")
+async def update_ticket(ticket_id: str, request: Request):
+    body = await request.json()
+    updates = {}
+    for k in ["status", "priority"]:
+        if k in body:
+            updates[k] = body[k]
+    if updates:
+        updates["updated_at"] = datetime.now(timezone.utc).isoformat()
+        await db.tickets.update_one({"ticket_id": ticket_id}, {"$set": updates})
+    ticket = await db.tickets.find_one({"ticket_id": ticket_id}, {"_id": 0})
+    return ticket
+
+
+# ─── User Profile ───
+@api_router.put("/auth/profile")
+async def update_profile(request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    body = await request.json()
+    updates = {}
+    for k in ["full_name", "mobile", "business_name"]:
+        if k in body:
+            updates[k] = body[k]
+    if updates:
+        await db.users.update_one({"user_id": user_id}, {"$set": updates})
+    updated = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    updated.pop("password_hash", None)
+    return updated
+
+@api_router.post("/auth/change-password")
+async def change_password(request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    body = await request.json()
+    current_pw = body.get("current_password", "")
+    new_pw = body.get("new_password", "")
+    full_user = await db.users.find_one({"user_id": user_id})
+    if not full_user or not verify_password(current_pw, full_user.get("password_hash", "")):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    if len(new_pw) < 8:
+        raise HTTPException(status_code=400, detail="New password must be at least 8 characters")
+    await db.users.update_one({"user_id": user_id}, {"$set": {"password_hash": hash_password(new_pw)}})
+    return {"message": "Password changed successfully"}
+
+
+# ─── Credits Purchase ───
+CREDIT_PACKS = [
+    {"pack_id": "msg_1k", "name": "1,000 Messages", "type": "messages", "amount": 1000, "price": 499},
+    {"pack_id": "msg_5k", "name": "5,000 Messages", "type": "messages", "amount": 5000, "price": 1999},
+    {"pack_id": "msg_20k", "name": "20,000 Messages", "type": "messages", "amount": 20000, "price": 6999},
+    {"pack_id": "agent_1", "name": "+1 Agent Slot", "type": "agent", "amount": 1, "price": 999},
+    {"pack_id": "agent_3", "name": "+3 Agent Slots", "type": "agent", "amount": 3, "price": 2499},
+]
+
+@api_router.get("/billing/credits")
+async def get_credit_packs():
+    return CREDIT_PACKS
+
+@api_router.post("/billing/buy-credits")
+async def buy_credits(request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    body = await request.json()
+    pack_id = body.get("pack_id", "")
+    payment_method = body.get("payment_method", "khalti")
+    pack = next((p for p in CREDIT_PACKS if p["pack_id"] == pack_id), None)
+    if not pack:
+        raise HTTPException(status_code=400, detail="Invalid pack")
+    payment_id = str(uuid.uuid4())
+    # Demo mode: instantly apply credits
+    if pack["type"] == "messages":
+        current = user.get("message_quota", 1000)
+        await db.users.update_one({"user_id": user_id}, {"$set": {"message_quota": current + pack["amount"]}})
+    elif pack["type"] == "agent":
+        # Increase agent limit by storing in user doc
+        current_extra = user.get("extra_agents", 0)
+        await db.users.update_one({"user_id": user_id}, {"$set": {"extra_agents": current_extra + pack["amount"]}})
+    await db.payments.insert_one({"payment_id": payment_id, "user_id": user_id, "pack_id": pack_id, "plan_id": "credits", "amount": pack["price"], "currency": "NPR", "method": payment_method, "status": "completed", "created_at": datetime.now(timezone.utc).isoformat()})
+    return {"message": f"Added {pack['name']}!", "payment_id": payment_id}
+
+
+# ─── Order Refund ───
+@api_router.post("/orders/{order_id}/refund")
+async def refund_order(order_id: str, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    order = await db.orders.find_one({"order_id": order_id, "client_id": user_id})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    if order.get("payment_status") != "paid":
+        raise HTTPException(status_code=400, detail="Only paid orders can be refunded")
+    body = await request.json()
+    reason = body.get("reason", "")
+    refund_amount = body.get("amount", order.get("total_amount", 0))
+    now = datetime.now(timezone.utc).isoformat()
+    refund_id = f"REF-{uuid.uuid4().hex[:8].upper()}"
+    history = order.get("status_history", [])
+    history.append({"status": "refunded", "timestamp": now, "note": reason})
+    await db.orders.update_one({"order_id": order_id}, {"$set": {"payment_status": "refunded", "order_status": "cancelled", "refund_id": refund_id, "refund_amount": refund_amount, "refund_reason": reason, "status_history": history, "updated_at": now}})
+    updated = await db.orders.find_one({"order_id": order_id}, {"_id": 0})
+    return updated
+
+
+# ─── Agent Settings ───
+class AgentSettingsInput(BaseModel):
+    greeting_message: Optional[str] = None
+    fallback_message: Optional[str] = None
+    response_tone: Optional[str] = None
+    response_language: Optional[str] = None
+    auto_reply_delay: Optional[int] = None
+    max_conversation_length: Optional[int] = None
+    collect_user_info: Optional[bool] = None
+    handoff_keywords: Optional[List[str]] = None
+
+@api_router.put("/agents/{agent_id}/settings")
+async def update_agent_settings(agent_id: str, input_data: AgentSettingsInput, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    updates = {k: v for k, v in input_data.model_dump().items() if v is not None}
+    if updates:
+        await db.agents.update_one({"agent_id": agent_id}, {"$set": updates})
+    updated = await db.agents.find_one({"agent_id": agent_id}, {"_id": 0})
+    return updated
+
+
 # ─── Health ───
 @api_router.get("/")
 async def root():

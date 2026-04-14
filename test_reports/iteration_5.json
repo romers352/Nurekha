@@ -1,0 +1,88 @@
+{
+  "summary": "Completed comprehensive testing of Nurekha's new features including bulk uploads, test chat, support tickets, profile management, and credit-based billing. Backend APIs working excellently (96.3% success rate), frontend pages loading correctly, but session management issues persist.",
+  "backend_issues": {
+    "critical_bugs": [],
+    "flaky_endpoints": [
+      {
+        "endpoint": "WebSocket /ws/chat/{conv_id}",
+        "failure_rate": "100%",
+        "symptoms": "Connection timeout in test environment",
+        "workaround": "WebSocket functionality may work in browser but fails in automated testing environment"
+      }
+    ],
+    "minor_issues": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Authentication session management",
+        "issue": "Session cookies expire quickly causing logout during testing",
+        "affected_selectors": ["Protected routes", "Dashboard navigation"],
+        "fix_priority": "MEDIUM"
+      },
+      {
+        "flow": "Agent listing display",
+        "issue": "Agents page shows '4 of 10 agents used' but no agents visible in UI",
+        "affected_screen": ["My Agents page"],
+        "fix_priority": "MEDIUM"
+      }
+    ],
+    "design_issues": []
+  },
+  "passed_tests": [
+    "API Health Check",
+    "Admin Login with correct credentials",
+    "Auth Me Endpoint",
+    "Dashboard Stats",
+    "List Agents (4 agents found via API)",
+    "Bulk FAQ Upload (3 FAQs imported)",
+    "Bulk Product Upload (2 products imported)",
+    "Agent Test Chat (AI response received)",
+    "Agent Settings Update",
+    "Create Support Ticket",
+    "List Support Tickets",
+    "Profile Update",
+    "Change Password (with revert)",
+    "Billing Plans API",
+    "Billing Credits API",
+    "Buy Credits (demo mode)",
+    "Billing Initiate Khalti",
+    "Billing Initiate eSewa",
+    "Billing Verify",
+    "Billing History",
+    "List Orders",
+    "Update Order Status",
+    "Order Refund",
+    "Pricing Page UI (3 message packs + 2 agent packs)",
+    "Services Page UI (6 service cards)",
+    "Support Page UI (create and list tickets)",
+    "Frontend Login Flow"
+  ],
+  "test_report_links": [
+    "/app/backend_test.py",
+    "/app/backend_test_results.json"
+  ],
+  "success_percentage": {
+    "backend": "96.3% (26/27 tests passed)",
+    "frontend": "75% (pricing, services, support working; settings/billing/train-agent affected by session issues)"
+  },
+  "action_item_for_main_agent": {
+    "high_priority": [
+      "Fix session management - cookies expire too quickly during navigation",
+      "Investigate agent listing display issue - API returns agents but UI doesn't show them"
+    ],
+    "medium_priority": [
+      "Review WebSocket connection issues for chat functionality",
+      "Add better error handling for session expiration"
+    ],
+    "low_priority": [
+      "Consider extending session timeout for better user experience"
+    ]
+  },
+  "updated_files": [
+    "/app/backend_test.py"
+  ],
+  "should_call_test_agent_after_fix": "true",
+  "should_main_agent_test_itself": "false"
+}

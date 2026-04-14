@@ -413,6 +413,271 @@ class NurekhaAPITester:
             self.log_test("Update Order Status", False, str(e))
             return False
 
+    def test_bulk_faq_upload(self, agent_id):
+        """Test POST /api/agents/{id}/training/faqs/bulk"""
+        if not agent_id:
+            self.log_test("Bulk FAQ Upload", False, "No agent ID provided")
+            return False
+            
+        try:
+            data = {
+                "faqs": [
+                    {"question": "What are your business hours?", "answer": "We are open Monday to Friday, 9 AM to 6 PM."},
+                    {"question": "Do you deliver?", "answer": "Yes, we deliver across Kathmandu valley."},
+                    {"question": "What payment methods do you accept?", "answer": "We accept cash, eSewa, Khalti, and bank transfer."}
+                ]
+            }
+            response = self.session.post(f"{self.base_url}/api/agents/{agent_id}/training/faqs/bulk", json=data)
+            success = response.status_code == 200
+            
+            if success:
+                result = response.json()
+                details = f"Imported {result.get('imported', 0)} FAQs"
+            else:
+                details = f"Status: {response.status_code}, Response: {response.text[:200]}"
+            
+            self.log_test("Bulk FAQ Upload", success, details)
+            return success
+        except Exception as e:
+            self.log_test("Bulk FAQ Upload", False, str(e))
+            return False
+
+    def test_bulk_product_upload(self, agent_id):
+        """Test POST /api/agents/{id}/training/products/bulk"""
+        if not agent_id:
+            self.log_test("Bulk Product Upload", False, "No agent ID provided")
+            return False
+            
+        try:
+            data = {
+                "products": [
+                    {"name": "Nepali Tea Set", "price": 1500, "stock": 50, "category": "Beverages", "description": "Traditional Nepali tea set with 6 cups", "sku": "TEA-001"},
+                    {"name": "Pashmina Shawl", "price": 3500, "stock": 20, "category": "Clothing", "description": "Handwoven pashmina from Nepal", "sku": "PSH-001"}
+                ]
+            }
+            response = self.session.post(f"{self.base_url}/api/agents/{agent_id}/training/products/bulk", json=data)
+            success = response.status_code == 200
+            
+            if success:
+                result = response.json()
+                details = f"Imported {result.get('imported', 0)} products"
+            else:
+                details = f"Status: {response.status_code}, Response: {response.text[:200]}"
+            
+            self.log_test("Bulk Product Upload", success, details)
+            return success
+        except Exception as e:
+            self.log_test("Bulk Product Upload", False, str(e))
+            return False
+
+    def test_agent_test_chat(self, agent_id):
+        """Test POST /api/agents/{id}/test-chat"""
+        if not agent_id:
+            self.log_test("Agent Test Chat", False, "No agent ID provided")
+            return False
+            
+        try:
+            data = {"message": "What are your business hours?"}
+            response = self.session.post(f"{self.base_url}/api/agents/{agent_id}/test-chat", json=data)
+            success = response.status_code == 200
+            
+            if success:
+                result = response.json()
+                details = f"Response: {result.get('response', 'No response')[:50]}..., Source: {result.get('source', 'Unknown')}"
+            else:
+                details = f"Status: {response.status_code}, Response: {response.text[:200]}"
+            
+            self.log_test("Agent Test Chat", success, details)
+            return success
+        except Exception as e:
+            self.log_test("Agent Test Chat", False, str(e))
+            return False
+
+    def test_support_tickets(self):
+        """Test support ticket creation and listing"""
+        try:
+            # Create a support ticket
+            create_data = {
+                "subject": "Test Support Ticket",
+                "message": "This is a test support ticket created by automated testing.",
+                "priority": "medium"
+            }
+            create_response = self.session.post(f"{self.base_url}/api/support/tickets", json=create_data)
+            create_success = create_response.status_code == 200
+            
+            if not create_success:
+                self.log_test("Create Support Ticket", False, f"Status: {create_response.status_code}")
+                return False
+                
+            ticket = create_response.json()
+            ticket_id = ticket.get('ticket_id')
+            self.log_test("Create Support Ticket", True, f"Created ticket: {ticket_id}")
+            
+            # List support tickets
+            list_response = self.session.get(f"{self.base_url}/api/support/tickets")
+            list_success = list_response.status_code == 200
+            
+            if list_success:
+                tickets = list_response.json()
+                details = f"Found {len(tickets)} tickets"
+            else:
+                details = f"Status: {list_response.status_code}, Response: {list_response.text[:200]}"
+            
+            self.log_test("List Support Tickets", list_success, details)
+            return create_success and list_success
+            
+        except Exception as e:
+            self.log_test("Support Tickets", False, str(e))
+            return False
+
+    def test_profile_update(self):
+        """Test PUT /api/auth/profile"""
+        try:
+            data = {
+                "full_name": "Updated Admin Name",
+                "mobile": "9812345678",
+                "business_name": "Updated Business Name"
+            }
+            response = self.session.put(f"{self.base_url}/api/auth/profile", json=data)
+            success = response.status_code == 200
+            
+            if success:
+                user = response.json()
+                details = f"Updated profile: {user.get('full_name', 'Unknown')}"
+            else:
+                details = f"Status: {response.status_code}, Response: {response.text[:200]}"
+            
+            self.log_test("Profile Update", success, details)
+            return success
+        except Exception as e:
+            self.log_test("Profile Update", False, str(e))
+            return False
+
+    def test_change_password(self):
+        """Test POST /api/auth/change-password"""
+        try:
+            data = {
+                "current_password": "Admin@123",
+                "new_password": "NewAdmin@123"
+            }
+            response = self.session.post(f"{self.base_url}/api/auth/change-password", json=data)
+            success = response.status_code == 200
+            
+            if success:
+                details = "Password changed successfully"
+                # Change it back
+                revert_data = {
+                    "current_password": "NewAdmin@123",
+                    "new_password": "Admin@123"
+                }
+                self.session.post(f"{self.base_url}/api/auth/change-password", json=revert_data)
+            else:
+                details = f"Status: {response.status_code}, Response: {response.text[:200]}"
+            
+            self.log_test("Change Password", success, details)
+            return success
+        except Exception as e:
+            self.log_test("Change Password", False, str(e))
+            return False
+
+    def test_billing_credits(self):
+        """Test GET /api/billing/credits"""
+        try:
+            response = self.session.get(f"{self.base_url}/api/billing/credits")
+            success = response.status_code == 200
+            
+            if success:
+                credits = response.json()
+                details = f"Found {len(credits)} credit packs"
+            else:
+                details = f"Status: {response.status_code}, Response: {response.text[:200]}"
+            
+            self.log_test("Billing Credits", success, details)
+            return success, credits if success else []
+        except Exception as e:
+            self.log_test("Billing Credits", False, str(e))
+            return False, []
+
+    def test_buy_credits(self):
+        """Test POST /api/billing/buy-credits"""
+        try:
+            data = {
+                "pack_id": "msg_1k",
+                "payment_method": "khalti"
+            }
+            response = self.session.post(f"{self.base_url}/api/billing/buy-credits", json=data)
+            success = response.status_code == 200
+            
+            if success:
+                result = response.json()
+                details = f"Purchase result: {result.get('message', 'Success')}"
+            else:
+                details = f"Status: {response.status_code}, Response: {response.text[:200]}"
+            
+            self.log_test("Buy Credits", success, details)
+            return success
+        except Exception as e:
+            self.log_test("Buy Credits", False, str(e))
+            return False
+
+    def test_order_refund(self, order_id):
+        """Test POST /api/orders/{id}/refund"""
+        if not order_id:
+            self.log_test("Order Refund", False, "No order ID provided")
+            return False
+            
+        try:
+            data = {
+                "reason": "Test refund",
+                "amount": 1000
+            }
+            response = self.session.post(f"{self.base_url}/api/orders/{order_id}/refund", json=data)
+            success = response.status_code == 200
+            
+            if success:
+                order = response.json()
+                details = f"Refunded order {order_id[:12]}..., Status: {order.get('payment_status', 'Unknown')}"
+            else:
+                details = f"Status: {response.status_code}, Response: {response.text[:200]}"
+            
+            self.log_test("Order Refund", success, details)
+            return success
+        except Exception as e:
+            self.log_test("Order Refund", False, str(e))
+            return False
+
+    def test_agent_settings(self, agent_id):
+        """Test PUT /api/agents/{id}/settings"""
+        if not agent_id:
+            self.log_test("Agent Settings", False, "No agent ID provided")
+            return False
+            
+        try:
+            data = {
+                "greeting_message": "Hello! Welcome to our updated business. How can I help you?",
+                "fallback_message": "I'm not sure about that. Let me connect you with our updated team.",
+                "response_tone": "friendly",
+                "response_language": "english",
+                "auto_reply_delay": 2,
+                "max_conversation_length": 100,
+                "collect_user_info": True,
+                "handoff_keywords": ["human", "manager", "speak to someone"]
+            }
+            response = self.session.put(f"{self.base_url}/api/agents/{agent_id}/settings", json=data)
+            success = response.status_code == 200
+            
+            if success:
+                agent = response.json()
+                details = f"Updated agent settings: {agent.get('name', 'Unknown')}"
+            else:
+                details = f"Status: {response.status_code}, Response: {response.text[:200]}"
+            
+            self.log_test("Agent Settings", success, details)
+            return success
+        except Exception as e:
+            self.log_test("Agent Settings", False, str(e))
+            return False
+
     def test_websocket_connection(self):
         """Test WebSocket connection (basic connectivity test)"""
         try:
@@ -532,9 +797,32 @@ class NurekhaAPITester:
                 if create_success and agent_id:
                     test_agent_id = agent_id
         
+        # Test new training features
+        print("\n🎓 Testing Training Features...")
+        if test_agent_id:
+            self.test_bulk_faq_upload(test_agent_id)
+            self.test_bulk_product_upload(test_agent_id)
+            self.test_agent_test_chat(test_agent_id)
+            self.test_agent_settings(test_agent_id)
+        else:
+            print("⚠️  Skipping training tests - no agent available")
+        
+        # Test support features
+        print("\n🎫 Testing Support Features...")
+        self.test_support_tickets()
+        
+        # Test profile management
+        print("\n👤 Testing Profile Features...")
+        self.test_profile_update()
+        self.test_change_password()
+        
         # Test billing endpoints
         print("\n📊 Testing Billing Features...")
         billing_plans_success, plans = self.test_billing_plans()
+        billing_credits_success, credits = self.test_billing_credits()
+        
+        if billing_credits_success:
+            self.test_buy_credits()
         
         if billing_plans_success:
             # Test payment initiation
@@ -557,9 +845,13 @@ class NurekhaAPITester:
             # Test order listing
             self.test_list_orders(test_agent_id)
             
-            # Test order status update
+            # Test order status update and refund
             if order_success and order_id:
                 self.test_update_order_status(order_id)
+                # First update to confirmed (paid) status, then test refund
+                confirm_data = {"status": "confirmed"}
+                self.session.patch(f"{self.base_url}/api/orders/{order_id}/status", json=confirm_data)
+                self.test_order_refund(order_id)
         else:
             print("⚠️  Skipping order tests - no agent available")
         
