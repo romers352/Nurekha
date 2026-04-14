@@ -442,6 +442,372 @@ async def delete_agent(agent_id: str, request: Request):
     return {"message": "Agent deleted"}
 
 
+# ─── Agent Update ───
+class UpdateAgentInput(BaseModel):
+    name: Optional[str] = None
+    status: Optional[str] = None
+    response_tone: Optional[str] = None
+    response_language: Optional[str] = None
+    greeting_message: Optional[str] = None
+    fallback_message: Optional[str] = None
+
+@api_router.patch("/agents/{agent_id}")
+async def update_agent(agent_id: str, input_data: UpdateAgentInput, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    updates = {k: v for k, v in input_data.model_dump().items() if v is not None}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    result = await db.agents.update_one({"agent_id": agent_id, "client_id": user_id}, {"$set": updates})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    agent = await db.agents.find_one({"agent_id": agent_id}, {"_id": 0})
+    return agent
+
+
+# ─── Channel Endpoints ───
+class ConnectChannelInput(BaseModel):
+    channel_type: str
+    page_id: Optional[str] = ""
+    page_name: Optional[str] = ""
+    config: Optional[dict] = {}
+
+@api_router.post("/agents/{agent_id}/channels")
+async def connect_channel(agent_id: str, input_data: ConnectChannelInput, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    channel_id = str(uuid.uuid4())
+    channel_doc = {
+        "channel_id": channel_id,
+        "agent_id": agent_id,
+        "channel_type": input_data.channel_type,
+        "page_id": input_data.page_id,
+        "page_name": input_data.page_name,
+        "config": input_data.config,
+        "is_active": True,
+        "connected_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.channels.insert_one(channel_doc)
+    channel_doc.pop("_id", None)
+    return channel_doc
+
+@api_router.get("/agents/{agent_id}/channels")
+async def list_channels(agent_id: str, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    channels = await db.channels.find({"agent_id": agent_id}, {"_id": 0}).to_list(20)
+    return channels
+
+@api_router.delete("/agents/{agent_id}/channels/{channel_id}")
+async def disconnect_channel(agent_id: str, channel_id: str, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    result = await db.channels.delete_one({"channel_id": channel_id, "agent_id": agent_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    return {"message": "Channel disconnected"}
+
+
+# ─── Training: Business Info ───
+class BusinessInfoInput(BaseModel):
+    description: Optional[str] = ""
+    contact_phone: Optional[str] = ""
+    contact_email: Optional[str] = ""
+    address: Optional[str] = ""
+    business_hours: Optional[dict] = {}
+    response_tone: Optional[str] = "friendly"
+    response_language: Optional[str] = "english"
+
+@api_router.put("/agents/{agent_id}/training/business-info")
+async def update_business_info(agent_id: str, input_data: BusinessInfoInput, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    data = input_data.model_dump()
+    data["agent_id"] = agent_id
+    data["updated_at"] = datetime.now(timezone.utc).isoformat()
+    await db.business_info.update_one({"agent_id": agent_id}, {"$set": data}, upsert=True)
+    doc = await db.business_info.find_one({"agent_id": agent_id}, {"_id": 0})
+    # Also update agent tone/language
+    await db.agents.update_one({"agent_id": agent_id}, {"$set": {"response_tone": data["response_tone"], "response_language": data["response_language"]}})
+    return doc
+
+@api_router.get("/agents/{agent_id}/training/business-info")
+async def get_business_info(agent_id: str, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    doc = await db.business_info.find_one({"agent_id": agent_id}, {"_id": 0})
+    return doc or {"agent_id": agent_id, "description": "", "contact_phone": "", "contact_email": "", "address": "", "business_hours": {}, "response_tone": "friendly", "response_language": "english"}
+
+
+# ─── Training: FAQs ───
+class FAQInput(BaseModel):
+    question: str
+    answer: str
+
+@api_router.post("/agents/{agent_id}/training/faqs")
+async def create_faq(agent_id: str, input_data: FAQInput, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    faq_id = str(uuid.uuid4())
+    faq_doc = {"faq_id": faq_id, "agent_id": agent_id, "question": input_data.question, "answer": input_data.answer, "order": 0, "created_at": datetime.now(timezone.utc).isoformat()}
+    await db.faqs.insert_one(faq_doc)
+    faq_doc.pop("_id", None)
+    return faq_doc
+
+@api_router.get("/agents/{agent_id}/training/faqs")
+async def list_faqs(agent_id: str, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    faqs = await db.faqs.find({"agent_id": agent_id}, {"_id": 0}).sort("order", 1).to_list(500)
+    return faqs
+
+@api_router.put("/agents/{agent_id}/training/faqs/{faq_id}")
+async def update_faq(agent_id: str, faq_id: str, input_data: FAQInput, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    result = await db.faqs.update_one({"faq_id": faq_id, "agent_id": agent_id}, {"$set": {"question": input_data.question, "answer": input_data.answer}})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="FAQ not found")
+    faq = await db.faqs.find_one({"faq_id": faq_id}, {"_id": 0})
+    return faq
+
+@api_router.delete("/agents/{agent_id}/training/faqs/{faq_id}")
+async def delete_faq(agent_id: str, faq_id: str, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    result = await db.faqs.delete_one({"faq_id": faq_id, "agent_id": agent_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="FAQ not found")
+    return {"message": "FAQ deleted"}
+
+
+# ─── Training: Documents ───
+class DocumentInput(BaseModel):
+    name: str
+    doc_type: Optional[str] = "file"
+    url: Optional[str] = ""
+    size: Optional[int] = 0
+
+@api_router.post("/agents/{agent_id}/training/documents")
+async def create_document(agent_id: str, input_data: DocumentInput, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    doc_id = str(uuid.uuid4())
+    doc = {"doc_id": doc_id, "agent_id": agent_id, "name": input_data.name, "doc_type": input_data.doc_type, "url": input_data.url, "size": input_data.size, "status": "ready", "created_at": datetime.now(timezone.utc).isoformat()}
+    await db.documents.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+@api_router.get("/agents/{agent_id}/training/documents")
+async def list_documents(agent_id: str, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    docs = await db.documents.find({"agent_id": agent_id}, {"_id": 0}).to_list(100)
+    return docs
+
+@api_router.delete("/agents/{agent_id}/training/documents/{doc_id}")
+async def delete_document(agent_id: str, doc_id: str, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    result = await db.documents.delete_one({"doc_id": doc_id, "agent_id": agent_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return {"message": "Document deleted"}
+
+
+# ─── Training: Products ───
+class ProductInput(BaseModel):
+    name: str
+    price: Optional[float] = 0
+    stock: Optional[int] = 0
+    category: Optional[str] = ""
+    description: Optional[str] = ""
+    image_url: Optional[str] = ""
+    is_active: Optional[bool] = True
+
+@api_router.post("/agents/{agent_id}/training/products")
+async def create_product(agent_id: str, input_data: ProductInput, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    product_id = str(uuid.uuid4())
+    product_doc = {**input_data.model_dump(), "product_id": product_id, "agent_id": agent_id, "created_at": datetime.now(timezone.utc).isoformat()}
+    await db.products.insert_one(product_doc)
+    product_doc.pop("_id", None)
+    return product_doc
+
+@api_router.get("/agents/{agent_id}/training/products")
+async def list_products(agent_id: str, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    products = await db.products.find({"agent_id": agent_id}, {"_id": 0}).to_list(500)
+    return products
+
+@api_router.put("/agents/{agent_id}/training/products/{product_id}")
+async def update_product(agent_id: str, product_id: str, input_data: ProductInput, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    result = await db.products.update_one({"product_id": product_id, "agent_id": agent_id}, {"$set": input_data.model_dump()})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Product not found")
+    product = await db.products.find_one({"product_id": product_id}, {"_id": 0})
+    return product
+
+@api_router.delete("/agents/{agent_id}/training/products/{product_id}")
+async def delete_product(agent_id: str, product_id: str, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    result = await db.products.delete_one({"product_id": product_id, "agent_id": agent_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Product not found")
+    return {"message": "Product deleted"}
+
+
+# ─── Conversations ───
+class ConversationInput(BaseModel):
+    end_user_name: str
+    channel: Optional[str] = "website"
+
+@api_router.get("/agents/{agent_id}/conversations")
+async def list_conversations(agent_id: str, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    convos = await db.conversations.find({"agent_id": agent_id}, {"_id": 0}).sort("last_message_at", -1).to_list(200)
+    return convos
+
+@api_router.post("/agents/{agent_id}/conversations")
+async def create_conversation(agent_id: str, input_data: ConversationInput, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    conv_id = str(uuid.uuid4())
+    conv_doc = {
+        "conv_id": conv_id, "agent_id": agent_id,
+        "channel": input_data.channel, "end_user_name": input_data.end_user_name,
+        "end_user_avatar": "", "is_muted": False, "is_blocked": False,
+        "ai_enabled": True, "unread_count": 0,
+        "last_message": "", "last_message_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.conversations.insert_one(conv_doc)
+    conv_doc.pop("_id", None)
+    return conv_doc
+
+
+# ─── Messages ───
+class MessageInput(BaseModel):
+    content: str
+    sender_type: Optional[str] = "agent"
+
+@api_router.get("/agents/{agent_id}/conversations/{conv_id}/messages")
+async def list_messages(agent_id: str, conv_id: str, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    messages = await db.messages.find({"conv_id": conv_id}, {"_id": 0}).sort("created_at", 1).to_list(500)
+    return messages
+
+@api_router.post("/agents/{agent_id}/conversations/{conv_id}/messages")
+async def send_message(agent_id: str, conv_id: str, input_data: MessageInput, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    msg_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+    msg_doc = {"msg_id": msg_id, "conv_id": conv_id, "agent_id": agent_id, "sender_type": input_data.sender_type, "content": input_data.content, "message_type": "text", "created_at": now}
+    await db.messages.insert_one(msg_doc)
+    # Update conversation
+    await db.conversations.update_one({"conv_id": conv_id}, {"$set": {"last_message": input_data.content, "last_message_at": now}})
+    msg_doc.pop("_id", None)
+    return msg_doc
+
+@api_router.patch("/agents/{agent_id}/conversations/{conv_id}")
+async def update_conversation(agent_id: str, conv_id: str, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    body = await request.json()
+    updates = {}
+    for key in ["ai_enabled", "is_muted", "is_blocked"]:
+        if key in body:
+            updates[key] = body[key]
+    if updates:
+        await db.conversations.update_one({"conv_id": conv_id, "agent_id": agent_id}, {"$set": updates})
+    conv = await db.conversations.find_one({"conv_id": conv_id}, {"_id": 0})
+    return conv
+
+
+# ─── Agent Overview Stats ───
+@api_router.get("/agents/{agent_id}/stats")
+async def agent_stats(agent_id: str, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id}, {"_id": 0})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    channel_count = await db.channels.count_documents({"agent_id": agent_id})
+    conv_count = await db.conversations.count_documents({"agent_id": agent_id})
+    msg_count = await db.messages.count_documents({"agent_id": agent_id})
+    faq_count = await db.faqs.count_documents({"agent_id": agent_id})
+    product_count = await db.products.count_documents({"agent_id": agent_id})
+    return {**agent, "channel_count": channel_count, "conversation_count": conv_count, "message_count": msg_count, "faq_count": faq_count, "product_count": product_count}
+
+
 # ─── Dashboard Stats ───
 @api_router.get("/dashboard/stats")
 async def dashboard_stats(request: Request):
@@ -487,6 +853,12 @@ async def startup():
     await db.password_reset_tokens.create_index("expires_at", expireAfterSeconds=0)
     await db.login_attempts.create_index("identifier")
     await db.user_sessions.create_index("session_token")
+    await db.channels.create_index("agent_id")
+    await db.faqs.create_index("agent_id")
+    await db.documents.create_index("agent_id")
+    await db.products.create_index("agent_id")
+    await db.conversations.create_index("agent_id")
+    await db.messages.create_index("conv_id")
 
     # Seed admin
     admin_email = os.environ.get("ADMIN_EMAIL", "admin@nurekha.com")
