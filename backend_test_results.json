@@ -1,0 +1,58 @@
+{
+  "summary": {
+    "total_tests": 8,
+    "passed_tests": 8,
+    "success_rate": 100.0,
+    "timestamp": "2026-04-14T03:23:52.146942"
+  },
+  "test_results": [
+    {
+      "test": "API Health Check",
+      "success": true,
+      "details": "Status: 200, Response: {\"message\":\"Nurekha API v1\"}",
+      "timestamp": "2026-04-14T03:23:51.212100"
+    },
+    {
+      "test": "Admin Login",
+      "success": true,
+      "details": "Logged in as: admin@nurekha.com, Role: admin",
+      "timestamp": "2026-04-14T03:23:51.496592"
+    },
+    {
+      "test": "Auth Me Endpoint",
+      "success": true,
+      "details": "User: admin@nurekha.com, Role: admin",
+      "timestamp": "2026-04-14T03:23:51.556005"
+    },
+    {
+      "test": "Dashboard Stats",
+      "success": true,
+      "details": "Quota: 100000, Used: 0, Agents: 0",
+      "timestamp": "2026-04-14T03:23:51.615742"
+    },
+    {
+      "test": "List Agents",
+      "success": true,
+      "details": "Found 0 agents",
+      "timestamp": "2026-04-14T03:23:51.675016"
+    },
+    {
+      "test": "Forgot Password",
+      "success": true,
+      "details": "Forgot password request accepted",
+      "timestamp": "2026-04-14T03:23:51.800453"
+    },
+    {
+      "test": "User Registration",
+      "success": true,
+      "details": "Registered user: test032351@example.com",
+      "timestamp": "2026-04-14T03:23:52.084148"
+    },
+    {
+      "test": "Logout",
+      "success": true,
+      "details": "Logout successful",
+      "timestamp": "2026-04-14T03:23:52.146807"
+    }
+  ]
+}
