@@ -6,6 +6,7 @@ Build "Nurekha" — a multi-tenant AI chat automation SaaS for Nepal. Features i
 ## Architecture
 - **Frontend**: React 19 + Tailwind CSS + shadcn/ui + Framer Motion
 - **Backend**: FastAPI + MongoDB (Motor async driver)
+- **Auth**: JWT (access+refresh tokens, httpOnly cookies) + Emergent Google OAuth
 - **Fonts**: Instrument Serif (display), Geist (body), Geist Mono (code)
 - **Design System**: White #FFFFFF base, #0C0A09 text, #1C1917 accent, #E7E5E4 borders
 
@@ -15,49 +16,48 @@ Build "Nurekha" — a multi-tenant AI chat automation SaaS for Nepal. Features i
 
 ## Core Requirements (Static)
 - Landing page with sections: Navbar, Hero, Channel bar, Features, How it works, Business types, CTA, Footer
-- Auth pages: Login, Signup, Forgot password, Reset password
+- Auth pages: Login, Signup, Forgot password, Reset password (JWT + Google OAuth)
 - Client Dashboard: Overview, Agents, Billing, Support, Settings
 - Agent Dashboard: Overview, Connect channels, Train agent, Business Chat, Data, Orders, Settings
 - Payment integration: eSewa + Khalti (demo/test mode)
 - Multi-channel support: Facebook, Instagram, WhatsApp, TikTok, Website widget
 
 ## What's Been Implemented
-- **2026-02-20**: Landing Page (Phase 1) — Complete
-  - Sticky Navbar with frosted glass effect
-  - Hero section with dot grid background, Instrument Serif heading
-  - Channel bar (5 channels)
-  - Features grid (6 cards)
-  - How it Works (4 steps)
-  - Business types grid (9 types)
-  - Dark CTA section
-  - Footer with link columns
-  - Mobile responsive with hamburger menu
-  - Framer Motion animations throughout
-  - All data-testid attributes present
-  - Testing: 98% pass rate
+- **2026-02-20**: Landing Page (Phase 1) — Complete (98% test pass)
+- **2026-02-20**: Auth System (Phase 2) — Complete (100% test pass)
+  - Backend: JWT auth (register, login, logout, me, refresh, forgot-password, reset-password)
+  - Backend: Emergent Google OAuth session exchange
+  - Backend: Admin seeding, brute force protection, MongoDB indexes
+  - Backend: Agent CRUD (create, list, get, delete) + Dashboard stats API
+  - Frontend: AuthContext provider with 3 states (checking/auth/not-auth)
+  - Frontend: ProtectedRoute, AuthCallback for Google OAuth
+  - Frontend: Login page (2-column, dark left, form right, Google button)
+  - Frontend: Signup page (Nepal +977 mobile, business type multi-select, password strength)
+  - Frontend: Forgot Password page (centered card, success state, countdown)
+  - Frontend: Reset Password page (token-based, strength bar)
+- **2026-02-20**: Client Dashboard (Phase 3) — Complete (100% test pass)
+  - ClientSidebar with collapse, active indicators, tooltips
+  - TopBar with quota progress, notifications, avatar dropdown
+  - MobileBottomNav for responsive
+  - Dashboard Overview with stat cards, quick actions, agent table
+  - Agents page with create dialog, delete, empty state
+  - Placeholder pages: Billing, Support, Settings
 
 ## Prioritized Backlog
 ### P0 (Next)
-- Auth pages (Signup, Login, Forgot Password, Reset Password)
-- Backend auth APIs
+- Agent Dashboard Shell (sidebar + layout)
+- Connect Channels page (5 channels)
+- Train Agent page (Business Info, FAQs, Documents, Products)
 
 ### P1
-- Client Dashboard Shell (Sidebar, TopBar, Layout)
-- Dashboard Overview page
-- Agents page (list + create)
+- Business Chat page (conversations, messages, user profile)
+- Orders page
 
 ### P2
-- Agent Dashboard Shell
-- Connect Channels page
-- Train Agent page (Business Info, FAQs, Documents, Products)
-- Business Chat page
-
-### P3
-- Orders page
 - Billing page (eSewa + Khalti integration)
-- Support/Settings pages
+- Support/Settings full implementation
 
 ## Next Tasks
-1. Build Auth pages (signup → login → forgot password)
-2. Implement backend auth API (JWT + Google OAuth)
-3. Build Client Dashboard layout and overview
+1. Build Agent Dashboard shell (AgentSidebar, AgentLayout)
+2. Connect Channels page (Facebook, Instagram, WhatsApp, TikTok, Website widget)
+3. Train Agent page (Business Info form, FAQ manager, Document uploader, Product table)
