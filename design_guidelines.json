@@ -1,0 +1,86 @@
+{
+  "project_name": "Nurekha AI Landing Page",
+  "theme": "Light",
+  "archetype": "4 (Swiss & High-Contrast)",
+  "design_philosophy": "White and black clean editorial design. Premium AI SaaS aesthetic for a Nepal-focused business. No gradients. High-tension contrast between Old Money Tech Serif (Instrument Serif) and Sterile Body (Geist).",
+  "colors": {
+    "background": {
+      "base": "#FFFFFF",
+      "subtle": "#FAFAFA",
+      "muted": "#F5F5F4"
+    },
+    "text": {
+      "primary": "#0C0A09",
+      "secondary": "#57534E",
+      "inverse": "#FFFFFF"
+    },
+    "accent": "#1C1917",
+    "border": "#E7E5E4",
+    "social": {
+      "facebook": "#1877F2",
+      "instagram": "#E4405F",
+      "whatsapp": "#25D366",
+      "tiktok": "#010101",
+      "website": "#6366F1"
+    }
+  },
+  "typography": {
+    "fonts": {
+      "heading": "'Instrument Serif', serif",
+      "body": "'Geist', sans-serif",
+      "mono": "'Geist Mono', monospace"
+    },
+    "scales": {
+      "h1": "text-5xl sm:text-6xl md:text-7xl font-serif tracking-tight leading-none text-primary",
+      "h2": "text-4xl sm:text-5xl font-serif tracking-tight leading-tight text-primary",
+      "h3": "text-2xl sm:text-3xl font-serif tracking-tight text-primary",
+      "body": "text-base text-secondary font-sans leading-relaxed",
+      "small": "text-sm text-secondary font-sans"
+    }
+  },
+  "layout_and_spacing": {
+    "container": "w-full max-w-7xl mx-auto px-6 md:px-12",
+    "section_padding": "py-24 sm:py-32",
+    "grid_bento": "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8"
+  },
+  "components": {
+    "cards": "bg-white border border-[#E7E5E4] rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.04)] p-8 transition-all duration-300 hover:shadow-[0_4px_16px_rgba(0,0,0,0.08)] hover:-translate-y-1",
+    "buttons": {
+      "primary": "bg-[#0C0A09] text-white rounded-md px-6 py-3 text-sm font-medium hover:bg-[#1C1917] transition-colors inline-flex items-center justify-center",
+      "secondary": "bg-white text-[#0C0A09] border border-[#E7E5E4] rounded-md px-6 py-3 text-sm font-medium hover:bg-[#FAFAFA] transition-colors inline-flex items-center justify-center",
+      "inverse": "bg-white text-[#0C0A09] rounded-md px-6 py-3 text-sm font-medium hover:bg-[#FAFAFA] transition-colors inline-flex items-center justify-center"
+    },
+    "navbar": "fixed top-0 inset-x-0 z-50 bg-white/80 backdrop-blur-xl border-b border-[#E7E5E4] h-16 flex items-center transition-all duration-300",
+    "hero_background": "absolute inset-0 -z-10 h-full w-full bg-white bg-[radial-gradient(#E7E5E4_1px,transparent_1px)] [background-size:24px_24px]",
+    "dark_cta_section": "relative bg-[#0C0A09] text-white overflow-hidden py-32 border-t border-[#1C1917]"
+  },
+  "media": {
+    "image_urls": [
+      {
+        "url": "https://images.unsplash.com/photo-1666618207644-4de0226a3f85?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzB8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBtaW5pbWFsaXN0JTIwb2ZmaWNlfGVufDB8fHx8MTc3NjEzNTY5MHww&ixlib=rb-4.1.0&q=85",
+        "category": "business_types",
+        "description": "Minimalist modern office. Use as a background or hover reveal image for the Corporate/Agency business type card."
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1769107805412-90d9191d53e9?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzh8MHwxfHNlYXJjaHwzfHxhZXN0aGV0aWMlMjBib3V0aXF1ZSUyMHN0b3JlfGVufDB8fHx8MTc3NjEzNTY5MHww&ixlib=rb-4.1.0&q=85",
+        "category": "business_types",
+        "description": "Aesthetic boutique store. Use as a background or hover reveal image for the Retail/E-commerce business type card."
+      }
+    ]
+  },
+  "sections_instructions": {
+    "navbar": "Sticky, high z-index, frosted glass. 'Nurekha' wordmark in Instrument Serif. Links and CTA on the right. Note: Use pure JS/JSX standards for React.",
+    "hero": "Include 'hero_background' CSS dot grid. H1 must use Instrument Serif ('Your business, always online.'). Keep text max-w-3xl. Primary + Secondary CTA buttons. Reveal via framer-motion.",
+    "channel_logos": "Horizontal list displaying the 5 channels (Facebook, Instagram, WhatsApp, TikTok, Website). Use Lucide icons only. Hover state colored by 'social' palette.",
+    "features_grid": "6 cards. 3-column layout. Top-aligned Lucide icon, large Serif heading for the feature, Geist sans for description.",
+    "how_it_works": "4 steps. Number them using big Instrument Serif numerals (e.g., '01', '02') in text-[#E7E5E4].",
+    "business_types": "9 types grid. Dense layout. Subtle hover effects. Option to reveal an image from 'media' on hover for select cards, keeping it minimal and editorial.",
+    "dark_cta": "Use dark_cta_section style. 'Ready to automate?' in serif. White inverse button.",
+    "footer": "Standard B2B SaaS footer. Link columns. Text in Geist."
+  },
+  "animation_and_interaction": {
+    "engine": "framer-motion",
+    "rules": "Fade-up stagger on lists. Do not animate layout shifts. Smooth spring hovers for cards."
+  },
+  "testing_rules": "All interactive elements (buttons, nav links, form elements, clickable cards) MUST contain a data-testid attribute in kebab-case."
+}
