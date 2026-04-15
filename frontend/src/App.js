@@ -24,6 +24,8 @@ import BusinessChatPage from "@/pages/agent/BusinessChatPage";
 import AgentDataPage from "@/pages/agent/AgentDataPage";
 import AgentOrdersPage from "@/pages/agent/AgentOrdersPage";
 import AgentSettingsPage from "@/pages/agent/AgentSettingsPage";
+import HotelRoomsPage from "@/pages/agent/HotelRoomsPage";
+import HotelBookingsPage from "@/pages/agent/HotelBookingsPage";
 
 function AppRouter() {
   const location = useLocation();
@@ -67,6 +69,8 @@ function AppRouter() {
         <Route path="chat" element={<BusinessChatPage />} />
         <Route path="data" element={<AgentDataPage />} />
         <Route path="orders" element={<AgentOrdersPage />} />
+        <Route path="rooms" element={<HotelRoomsPage />} />
+        <Route path="bookings" element={<HotelBookingsPage />} />
         <Route path="settings" element={<AgentSettingsPage />} />
       </Route>
     </Routes>

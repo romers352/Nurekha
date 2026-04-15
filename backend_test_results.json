@@ -1,88 +1,100 @@
 {
   "summary": {
-    "total_tests": 13,
-    "passed_tests": 13,
+    "total_tests": 15,
+    "passed_tests": 15,
     "success_rate": 100.0,
-    "timestamp": "2026-04-15T03:56:04.431604"
+    "timestamp": "2026-04-15T04:10:08.818632"
   },
   "test_results": [
     {
       "test": "API Health Check",
       "success": true,
       "details": "Status: 200, Response: {\"message\":\"Nurekha API v1\"}",
-      "timestamp": "2026-04-15T03:56:03.303318"
+      "timestamp": "2026-04-15T04:10:07.891495"
     },
     {
       "test": "Admin Login",
       "success": true,
       "details": "Logged in as: admin@nurekha.com, Role: admin",
-      "timestamp": "2026-04-15T03:56:03.572371"
+      "timestamp": "2026-04-15T04:10:08.166802"
     },
     {
-      "test": "Auth Register Without business_types",
+      "test": "List Agents",
       "success": true,
-      "details": "Registered user: testuser123035603@test.com, business_types defaulted to []",
-      "timestamp": "2026-04-15T03:56:03.840019"
+      "details": "Found 2 agents",
+      "timestamp": "2026-04-15T04:10:08.215685"
     },
     {
-      "test": "Agent Creation with business_type",
+      "test": "Custom Billing - Minimum Enforcement (Fail)",
       "success": true,
-      "details": "Created agent: Hotel Bot with business_type: Hotel",
-      "timestamp": "2026-04-15T03:56:03.888148"
+      "details": "Correctly rejected quantity 50: Minimum purchase is 100 message credits",
+      "timestamp": "2026-04-15T04:10:08.261713"
     },
     {
-      "test": "Agent Rename",
+      "test": "Custom Billing - Minimum Enforcement (Success)",
       "success": true,
-      "details": "Successfully renamed agent to: Renamed Bot",
-      "timestamp": "2026-04-15T03:56:03.934484"
+      "details": "Successfully purchased 100 messages: Added 100 Messages!",
+      "timestamp": "2026-04-15T04:10:08.312255"
     },
     {
-      "test": "Agent Deactivate",
+      "test": "Hotel Rooms - CREATE",
       "success": true,
-      "details": "Successfully deactivated agent, status: inactive",
-      "timestamp": "2026-04-15T03:56:03.978446"
+      "details": "Created room 096dfddf-ea77-4dbd-814f-bf0a6ecbe72f: Deluxe 101",
+      "timestamp": "2026-04-15T04:10:08.361079"
     },
     {
-      "test": "Agent Stats with Charts",
+      "test": "Hotel Rooms - READ",
       "success": true,
-      "details": "Agent stats with charts - message_distribution: 3 items, daily_activity: 7 items",
-      "timestamp": "2026-04-15T03:56:04.100628"
+      "details": "Found 1 rooms including created room",
+      "timestamp": "2026-04-15T04:10:08.412321"
     },
     {
-      "test": "GET /api/notifications",
+      "test": "Hotel Rooms - UPDATE",
       "success": true,
-      "details": "Found 1 notifications",
-      "timestamp": "2026-04-15T03:56:04.147359"
+      "details": "Successfully updated price to 6000.0",
+      "timestamp": "2026-04-15T04:10:08.461060"
     },
     {
-      "test": "GET /api/notifications/unread-count",
+      "test": "Hotel Rooms - DELETE",
       "success": true,
-      "details": "Unread count: 0",
-      "timestamp": "2026-04-15T03:56:04.204010"
+      "details": "Successfully deleted room 096dfddf-ea77-4dbd-814f-bf0a6ecbe72f",
+      "timestamp": "2026-04-15T04:10:08.508419"
     },
     {
-      "test": "PATCH /api/notifications/{id}/read",
+      "test": "Hotel Bookings - Room Creation",
       "success": true,
-      "details": "Successfully marked notification 2e0cbff2-2ae... as read",
-      "timestamp": "2026-04-15T03:56:04.250967"
+      "details": "Created room 0c30e6a2-17c7-4f4c-9edd-4443a14505db for booking",
+      "timestamp": "2026-04-15T04:10:08.554748"
     },
     {
-      "test": "POST /api/notifications/mark-all-read",
+      "test": "Hotel Bookings - CREATE",
       "success": true,
-      "details": "Marked 0 notifications as read",
-      "timestamp": "2026-04-15T03:56:04.337821"
+      "details": "Created booking BKG-876509ED for Test Guest",
+      "timestamp": "2026-04-15T04:10:08.602820"
     },
     {
-      "test": "Dashboard Stats with Charts",
+      "test": "Hotel Bookings - READ",
       "success": true,
-      "details": "Dashboard stats with charts - agent_distribution: 1 items, daily_usage: 7 items",
-      "timestamp": "2026-04-15T03:56:04.387873"
+      "details": "Found 1 bookings including created booking",
+      "timestamp": "2026-04-15T04:10:08.648415"
     },
     {
-      "test": "Business Types Endpoint",
+      "test": "Hotel Bookings - UPDATE Status",
       "success": true,
-      "details": "Found 9 business types: ['E-commerce', 'Hotel', 'Salon/Spa']...",
-      "timestamp": "2026-04-15T03:56:04.431424"
+      "details": "Successfully updated status to confirmed",
+      "timestamp": "2026-04-15T04:10:08.695263"
+    },
+    {
+      "test": "Support File Upload",
+      "success": true,
+      "details": "Uploaded file 9e8ee326-7171-428f-af8c-c92b46686259: test.txt (100 bytes)",
+      "timestamp": "2026-04-15T04:10:08.764154"
+    },
+    {
+      "test": "Support Ticket Unread Count",
+      "success": true,
+      "details": "Unread ticket count: 0",
+      "timestamp": "2026-04-15T04:10:08.818468"
     }
   ]
 }

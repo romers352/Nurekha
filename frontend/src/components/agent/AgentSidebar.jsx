@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   LayoutDashboard, Plug, Brain, MessageSquare, FolderOpen,
-  ShoppingBag, Settings, ChevronLeft, ChevronRight,
+  ShoppingBag, Settings, ChevronLeft, ChevronRight, Hotel, CalendarCheck,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -39,15 +39,39 @@ export default function AgentSidebar() {
     } catch {}
   };
 
-  const navItems = [
-    { icon: LayoutDashboard, label: "Overview", href: `/agent/${agentId}` },
-    { icon: Plug, label: "Connect Channels", href: `/agent/${agentId}/connect` },
-    { icon: Brain, label: "Train Agent", href: `/agent/${agentId}/train` },
-    { icon: MessageSquare, label: "Business Chat", href: `/agent/${agentId}/chat` },
-    { icon: FolderOpen, label: "Uploaded Data", href: `/agent/${agentId}/data` },
-    { icon: ShoppingBag, label: "Orders", href: `/agent/${agentId}/orders` },
-    { icon: Settings, label: "Agent Settings", href: `/agent/${agentId}/settings` },
-  ];
+  const businessType = agent?.business_type || "Other";
+
+  // Build nav items dynamically based on business type
+  const buildNavItems = () => {
+    const base = [
+      { icon: LayoutDashboard, label: "Overview", href: `/agent/${agentId}` },
+      { icon: Plug, label: "Connect Channels", href: `/agent/${agentId}/connect` },
+      { icon: Brain, label: "Train Agent", href: `/agent/${agentId}/train` },
+      { icon: MessageSquare, label: "Business Chat", href: `/agent/${agentId}/chat` },
+    ];
+
+    if (businessType === "E-commerce") {
+      base.push(
+        { icon: FolderOpen, label: "Uploaded Data", href: `/agent/${agentId}/data` },
+        { icon: ShoppingBag, label: "Orders", href: `/agent/${agentId}/orders` },
+      );
+    } else if (businessType === "Hotel") {
+      base.push(
+        { icon: Hotel, label: "Rooms", href: `/agent/${agentId}/rooms` },
+        { icon: CalendarCheck, label: "Bookings", href: `/agent/${agentId}/bookings` },
+      );
+    } else {
+      // Other types - show generic data
+      base.push(
+        { icon: FolderOpen, label: "Uploaded Data", href: `/agent/${agentId}/data` },
+      );
+    }
+
+    base.push({ icon: Settings, label: "Agent Settings", href: `/agent/${agentId}/settings` });
+    return base;
+  };
+
+  const navItems = buildNavItems();
 
   const isActive = (href) => {
     if (href === `/agent/${agentId}`) return location.pathname === `/agent/${agentId}`;
@@ -82,7 +106,7 @@ export default function AgentSidebar() {
               </div>
               <div className="min-w-0">
                 <p className="font-serif text-lg text-[#0C0A09] truncate">{agent.name}</p>
-                <p className="font-mono text-xs text-[#A8A29E] truncate">{agentId?.slice(0, 12)}...</p>
+                <p className="text-xs text-[#57534E]">{businessType}</p>
               </div>
             </div>
           </div>

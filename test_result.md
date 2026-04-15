@@ -210,6 +210,66 @@ backend:
         agent: "testing"
         comment: "✅ TESTED: Business types endpoint returns 9 business types including E-commerce, Hotel, Salon/Spa, etc."
 
+  - task: "Custom billing purchase with minimum 100"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Custom billing minimum enforcement working correctly. POST /api/billing/buy-custom with quantity=50 correctly returns 400 error 'Minimum purchase is 100'. Purchase with quantity=100 and payment_method=khalti succeeds."
+
+  - task: "Hotel rooms CRUD"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Hotel rooms CRUD operations working correctly. Successfully tested CREATE (POST /api/agents/{hotel_agent_id}/rooms), READ (GET), UPDATE (PUT with price change from 5000 to 6000), and DELETE operations. All endpoints functioning properly."
+
+  - task: "Hotel bookings CRUD"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Hotel bookings CRUD operations working correctly. Successfully tested CREATE booking (POST /api/bookings), READ bookings (GET /api/bookings?agent_id={hotel_agent_id}), and UPDATE status (PATCH /api/bookings/{booking_id}/status) from pending to confirmed. All operations functioning properly."
+
+  - task: "Support ticket file upload"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Support file upload working correctly. POST /api/support/upload successfully accepts file_name, file_type, file_size, and base64 file_data. Returns file_id and metadata properly."
+
+  - task: "Support ticket unread count"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Support ticket unread count working correctly. GET /api/support/tickets/unread-count returns proper count structure with 'count' field."
+
 frontend:
   - task: "Signup page - business type removed"
     implemented: true
@@ -310,7 +370,7 @@ frontend:
 metadata:
   created_by: "main_agent"
   version: "1.0"
-  test_sequence: 2
+  test_sequence: 3
   run_ui: false
 
 test_plan:
@@ -321,6 +381,8 @@ test_plan:
 
 agent_communication:
   - agent: "main"
-    message: "Phase 1 implementation complete. All backend APIs are implemented. Please test: 1) Auth register with optional business_types, 2) Agent creation with business_type field, 3) PATCH /agents/{id} for rename/status change, 4) Notifications endpoints, 5) Dashboard stats with chart data. Admin credentials: admin@nurekha.com / Admin@123"
+    message: "Phase 2 implementation complete. Test new APIs: 1) POST /api/billing/buy-custom with type=messages, quantity=50 should FAIL (min 100), quantity=100 should pass. 2) Hotel rooms: POST/GET /api/agents/{hotel_agent_id}/rooms. 3) Bookings: POST/GET /api/bookings. 4) Support uploads: POST /api/support/upload. 5) Unread ticket count: GET /api/support/tickets/unread-count. Admin: admin@nurekha.com / Admin@123. Two agents exist: E-commerce and Hotel."
   - agent: "testing"
     message: "✅ PHASE 1 BACKEND TESTING COMPLETE: All 13 tests passed (100% success rate). Tested auth register without business_types (defaults to []), agent creation with business_type field, agent rename/deactivate via PATCH, all notification endpoints, dashboard stats with chart data, agent stats with chart data, and business types endpoint. All APIs working correctly with proper data structures and responses."
+  - agent: "testing"
+    message: "✅ PHASE 2 BACKEND TESTING COMPLETE: All 15 tests passed (100% success rate). Tested custom billing minimum enforcement (correctly rejects <100, accepts >=100), hotel rooms CRUD (CREATE/READ/UPDATE/DELETE all working), hotel bookings CRUD (create booking, list by agent_id, update status), support file upload (accepts base64 data), and support ticket unread count. All Phase 2 APIs working correctly with proper validation and responses."

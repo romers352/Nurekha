@@ -1012,6 +1012,261 @@ class NurekhaAPITester:
             self.log_test("WebSocket Test", False, str(e))
             return False
 
+    def test_custom_billing_minimum_enforcement(self):
+        """Test custom billing minimum enforcement"""
+        try:
+            # Test 1: Should fail with quantity < 100
+            data = {"type": "messages", "quantity": 50}
+            response = self.session.post(f"{self.base_url}/api/billing/buy-custom", json=data)
+            fail_success = response.status_code == 400
+            
+            if fail_success:
+                error_msg = response.json().get("detail", "")
+                if "Minimum purchase is 100" in error_msg:
+                    details = f"Correctly rejected quantity 50: {error_msg}"
+                else:
+                    fail_success = False
+                    details = f"Wrong error message: {error_msg}"
+            else:
+                details = f"Should have failed with 400, got {response.status_code}"
+            
+            self.log_test("Custom Billing - Minimum Enforcement (Fail)", fail_success, details)
+            
+            # Test 2: Should succeed with quantity >= 100
+            data = {"type": "messages", "quantity": 100, "payment_method": "khalti"}
+            response = self.session.post(f"{self.base_url}/api/billing/buy-custom", json=data)
+            success_success = response.status_code == 200
+            
+            if success_success:
+                result = response.json()
+                details = f"Successfully purchased 100 messages: {result.get('message', 'Success')}"
+            else:
+                details = f"Status: {response.status_code}, Response: {response.text[:200]}"
+            
+            self.log_test("Custom Billing - Minimum Enforcement (Success)", success_success, details)
+            return fail_success and success_success
+            
+        except Exception as e:
+            self.log_test("Custom Billing - Minimum Enforcement", False, str(e))
+            return False
+
+    def test_hotel_rooms_crud(self, hotel_agent_id):
+        """Test Hotel Rooms CRUD operations"""
+        if not hotel_agent_id:
+            self.log_test("Hotel Rooms CRUD", False, "No hotel agent ID provided")
+            return False, None
+            
+        try:
+            # CREATE room
+            room_data = {
+                "room_type": "Deluxe",
+                "room_number": "101",
+                "price_per_night": 5000,
+                "capacity": 2,
+                "amenities": ["WiFi", "AC"],
+                "description": "Test room"
+            }
+            create_response = self.session.post(f"{self.base_url}/api/agents/{hotel_agent_id}/rooms", json=room_data)
+            create_success = create_response.status_code == 200
+            
+            if not create_success:
+                self.log_test("Hotel Rooms - CREATE", False, f"Status: {create_response.status_code}")
+                return False, None
+                
+            room = create_response.json()
+            room_id = room.get('room_id')
+            self.log_test("Hotel Rooms - CREATE", True, f"Created room {room_id}: {room.get('room_type')} {room.get('room_number')}")
+            
+            # READ rooms
+            read_response = self.session.get(f"{self.base_url}/api/agents/{hotel_agent_id}/rooms")
+            read_success = read_response.status_code == 200
+            
+            if read_success:
+                rooms = read_response.json()
+                found_room = any(r.get('room_id') == room_id for r in rooms)
+                if found_room:
+                    details = f"Found {len(rooms)} rooms including created room"
+                else:
+                    read_success = False
+                    details = f"Created room not found in list of {len(rooms)} rooms"
+            else:
+                details = f"Status: {read_response.status_code}"
+            
+            self.log_test("Hotel Rooms - READ", read_success, details)
+            
+            # UPDATE room
+            update_data = {
+                "room_type": "Deluxe",
+                "room_number": "101",
+                "price_per_night": 6000,  # Updated price
+                "capacity": 2,
+                "amenities": ["WiFi", "AC"],
+                "description": "Test room"
+            }
+            update_response = self.session.put(f"{self.base_url}/api/agents/{hotel_agent_id}/rooms/{room_id}", json=update_data)
+            update_success = update_response.status_code == 200
+            
+            if update_success:
+                updated_room = update_response.json()
+                if updated_room.get('price_per_night') == 6000:
+                    details = f"Successfully updated price to {updated_room.get('price_per_night')}"
+                else:
+                    update_success = False
+                    details = f"Price not updated correctly: {updated_room.get('price_per_night')}"
+            else:
+                details = f"Status: {update_response.status_code}"
+            
+            self.log_test("Hotel Rooms - UPDATE", update_success, details)
+            
+            # DELETE room
+            delete_response = self.session.delete(f"{self.base_url}/api/agents/{hotel_agent_id}/rooms/{room_id}")
+            delete_success = delete_response.status_code == 200
+            
+            if delete_success:
+                details = f"Successfully deleted room {room_id}"
+            else:
+                details = f"Status: {delete_response.status_code}"
+            
+            self.log_test("Hotel Rooms - DELETE", delete_success, details)
+            
+            return create_success and read_success and update_success and delete_success, room_id
+            
+        except Exception as e:
+            self.log_test("Hotel Rooms CRUD", False, str(e))
+            return False, None
+
+    def test_hotel_bookings_crud(self, hotel_agent_id):
+        """Test Hotel Bookings CRUD operations"""
+        if not hotel_agent_id:
+            self.log_test("Hotel Bookings CRUD", False, "No hotel agent ID provided")
+            return False
+            
+        try:
+            # First create a room for booking
+            room_data = {
+                "room_type": "Standard",
+                "room_number": "102",
+                "price_per_night": 4000,
+                "capacity": 2,
+                "amenities": ["WiFi"],
+                "description": "Room for booking test"
+            }
+            room_response = self.session.post(f"{self.base_url}/api/agents/{hotel_agent_id}/rooms", json=room_data)
+            if room_response.status_code != 200:
+                self.log_test("Hotel Bookings - Room Creation", False, f"Failed to create room: {room_response.status_code}")
+                return False
+                
+            room = room_response.json()
+            room_id = room.get('room_id')
+            self.log_test("Hotel Bookings - Room Creation", True, f"Created room {room_id} for booking")
+            
+            # CREATE booking
+            booking_data = {
+                "agent_id": hotel_agent_id,
+                "room_id": room_id,
+                "guest_name": "Test Guest",
+                "check_in": "2025-07-01",
+                "check_out": "2025-07-03",
+                "total_amount": 10000
+            }
+            create_response = self.session.post(f"{self.base_url}/api/bookings", json=booking_data)
+            create_success = create_response.status_code == 200
+            
+            if not create_success:
+                self.log_test("Hotel Bookings - CREATE", False, f"Status: {create_response.status_code}")
+                return False
+                
+            booking = create_response.json()
+            booking_id = booking.get('booking_id')
+            self.log_test("Hotel Bookings - CREATE", True, f"Created booking {booking_id} for {booking.get('guest_name')}")
+            
+            # READ bookings
+            read_response = self.session.get(f"{self.base_url}/api/bookings?agent_id={hotel_agent_id}")
+            read_success = read_response.status_code == 200
+            
+            if read_success:
+                bookings = read_response.json()
+                found_booking = any(b.get('booking_id') == booking_id for b in bookings)
+                if found_booking:
+                    details = f"Found {len(bookings)} bookings including created booking"
+                else:
+                    read_success = False
+                    details = f"Created booking not found in list of {len(bookings)} bookings"
+            else:
+                details = f"Status: {read_response.status_code}"
+            
+            self.log_test("Hotel Bookings - READ", read_success, details)
+            
+            # UPDATE booking status
+            status_data = {"status": "confirmed"}
+            update_response = self.session.patch(f"{self.base_url}/api/bookings/{booking_id}/status", json=status_data)
+            update_success = update_response.status_code == 200
+            
+            if update_success:
+                updated_booking = update_response.json()
+                if updated_booking.get('booking_status') == 'confirmed':
+                    details = f"Successfully updated status to {updated_booking.get('booking_status')}"
+                else:
+                    update_success = False
+                    details = f"Status not updated correctly: {updated_booking.get('booking_status')}"
+            else:
+                details = f"Status: {update_response.status_code}"
+            
+            self.log_test("Hotel Bookings - UPDATE Status", update_success, details)
+            
+            return create_success and read_success and update_success
+            
+        except Exception as e:
+            self.log_test("Hotel Bookings CRUD", False, str(e))
+            return False
+
+    def test_support_file_upload(self):
+        """Test support file upload"""
+        try:
+            # Test file upload with base64 data
+            file_data = {
+                "file_name": "test.txt",
+                "file_type": "text/plain",
+                "file_size": 100,
+                "file_data": "dGVzdA=="  # base64 for "test"
+            }
+            response = self.session.post(f"{self.base_url}/api/support/upload", json=file_data)
+            success = response.status_code == 200
+            
+            if success:
+                result = response.json()
+                file_id = result.get('file_id')
+                details = f"Uploaded file {file_id}: {result.get('file_name')} ({result.get('file_size')} bytes)"
+            else:
+                details = f"Status: {response.status_code}, Response: {response.text[:200]}"
+            
+            self.log_test("Support File Upload", success, details)
+            return success
+            
+        except Exception as e:
+            self.log_test("Support File Upload", False, str(e))
+            return False
+
+    def test_support_ticket_unread_count(self):
+        """Test support ticket unread count"""
+        try:
+            response = self.session.get(f"{self.base_url}/api/support/tickets/unread-count")
+            success = response.status_code == 200
+            
+            if success:
+                result = response.json()
+                count = result.get('count', 0)
+                details = f"Unread ticket count: {count}"
+            else:
+                details = f"Status: {response.status_code}, Response: {response.text[:200]}"
+            
+            self.log_test("Support Ticket Unread Count", success, details)
+            return success
+            
+        except Exception as e:
+            self.log_test("Support Ticket Unread Count", False, str(e))
+            return False
+
     def run_phase1_tests(self):
         """Run Phase 1 specific backend tests"""
         print("🚀 Starting Nurekha Phase 1 Backend API Tests")
@@ -1073,9 +1328,83 @@ class NurekhaAPITester:
             print("⚠️  Some Phase 1 tests failed. Check the details above.")
             return False
 
+    def run_phase2_tests(self):
+        """Run Phase 2 specific backend tests"""
+        print("🚀 Starting Nurekha Phase 2 Backend API Tests")
+        print("=" * 50)
+        
+        # Test API health first
+        if not self.test_health_check():
+            print("❌ API is not responding. Stopping tests.")
+            return False
+        
+        # Test admin login
+        login_success, user_data = self.test_admin_login()
+        if not login_success:
+            print("❌ Admin login failed. Cannot proceed with authenticated tests.")
+            return False
+        
+        # Get list of agents to find Hotel agent
+        print("\n🔍 Finding Hotel Agent...")
+        agents_success, agents = self.test_list_agents()
+        hotel_agent_id = None
+        
+        if agents_success and agents:
+            for agent in agents:
+                if agent.get('business_type') == 'Hotel':
+                    hotel_agent_id = agent.get('agent_id')
+                    print(f"✅ Found Hotel agent: {agent.get('name')} (ID: {hotel_agent_id[:12]}...)")
+                    break
+        
+        if not hotel_agent_id:
+            print("⚠️  No Hotel agent found. Creating one for testing...")
+            # Create a Hotel agent for testing
+            hotel_data = {"name": "Test Hotel Bot", "business_type": "Hotel"}
+            create_response = self.session.post(f"{self.base_url}/api/agents", json=hotel_data)
+            if create_response.status_code in [200, 201]:
+                hotel_agent = create_response.json()
+                hotel_agent_id = hotel_agent.get('agent_id')
+                print(f"✅ Created Hotel agent: {hotel_agent.get('name')} (ID: {hotel_agent_id[:12]}...)")
+            else:
+                print("❌ Failed to create Hotel agent. Some tests will be skipped.")
+        
+        print("\n💳 Testing Phase 2 Billing Features...")
+        # Test 1: Custom billing minimum enforcement
+        self.test_custom_billing_minimum_enforcement()
+        
+        if hotel_agent_id:
+            print("\n🏨 Testing Phase 2 Hotel Features...")
+            # Test 2: Hotel rooms CRUD
+            rooms_success, room_id = self.test_hotel_rooms_crud(hotel_agent_id)
+            
+            # Test 3: Hotel bookings CRUD
+            self.test_hotel_bookings_crud(hotel_agent_id)
+        else:
+            print("⚠️  Skipping Hotel tests - no Hotel agent available")
+        
+        print("\n🎫 Testing Phase 2 Support Features...")
+        # Test 4: Support file upload
+        self.test_support_file_upload()
+        
+        # Test 5: Support ticket unread count
+        self.test_support_ticket_unread_count()
+        
+        # Print summary
+        print("\n" + "=" * 50)
+        print(f"📊 Phase 2 Test Summary: {self.tests_passed}/{self.tests_run} tests passed")
+        success_rate = (self.tests_passed / self.tests_run) * 100 if self.tests_run > 0 else 0
+        print(f"📈 Success Rate: {success_rate:.1f}%")
+        
+        if self.tests_passed == self.tests_run:
+            print("🎉 All Phase 2 tests passed!")
+            return True
+        else:
+            print("⚠️  Some Phase 2 tests failed. Check the details above.")
+            return False
+
 def main():
     tester = NurekhaAPITester()
-    success = tester.run_phase1_tests()
+    success = tester.run_phase2_tests()
     
     # Save detailed results
     with open('/app/backend_test_results.json', 'w') as f:

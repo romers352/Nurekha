@@ -1295,6 +1295,7 @@ class TicketInput(BaseModel):
     subject: str
     message: str
     priority: Optional[str] = "medium"
+    attachments: Optional[List[dict]] = []
 
 @api_router.post("/support/tickets")
 async def create_ticket(input_data: TicketInput, request: Request):
@@ -1302,7 +1303,15 @@ async def create_ticket(input_data: TicketInput, request: Request):
     user_id = user.get("user_id") or str(user.get("_id", ""))
     ticket_id = f"TKT-{uuid.uuid4().hex[:8].upper()}"
     now = datetime.now(timezone.utc).isoformat()
-    ticket = {"ticket_id": ticket_id, "user_id": user_id, "user_name": user.get("full_name", ""), "user_email": user.get("email", ""), "subject": input_data.subject, "message": input_data.message, "priority": input_data.priority, "status": "open", "replies": [], "created_at": now, "updated_at": now}
+    ticket = {
+        "ticket_id": ticket_id, "user_id": user_id,
+        "user_name": user.get("full_name", ""), "user_email": user.get("email", ""),
+        "subject": input_data.subject, "message": input_data.message,
+        "priority": input_data.priority, "status": "open",
+        "attachments": input_data.attachments or [],
+        "replies": [], "read_by_user": True,
+        "created_at": now, "updated_at": now,
+    }
     await db.tickets.insert_one(ticket)
     ticket.pop("_id", None)
     return ticket
@@ -1319,8 +1328,19 @@ async def reply_ticket(ticket_id: str, request: Request):
     user = await get_current_user(request)
     user_id = user.get("user_id") or str(user.get("_id", ""))
     body = await request.json()
-    reply = {"sender": user.get("full_name", "User"), "message": body.get("message", ""), "created_at": datetime.now(timezone.utc).isoformat()}
-    await db.tickets.update_one({"ticket_id": ticket_id}, {"$push": {"replies": reply}, "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}})
+    reply = {
+        "sender": user.get("full_name", "User"),
+        "message": body.get("message", ""),
+        "attachments": body.get("attachments", []),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.tickets.update_one(
+        {"ticket_id": ticket_id},
+        {
+            "$push": {"replies": reply},
+            "$set": {"updated_at": datetime.now(timezone.utc).isoformat(), "read_by_user": False},
+        }
+    )
     ticket = await db.tickets.find_one({"ticket_id": ticket_id}, {"_id": 0})
 
     # Create notification for ticket update
@@ -1336,6 +1356,49 @@ async def reply_ticket(ticket_id: str, request: Request):
     })
 
     return ticket
+
+@api_router.get("/support/tickets/unread-count")
+async def unread_tickets_count(request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    count = await db.tickets.count_documents({"user_id": user_id, "read_by_user": False})
+    return {"count": count}
+
+@api_router.patch("/support/tickets/{ticket_id}/mark-read")
+async def mark_ticket_read(ticket_id: str, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    await db.tickets.update_one({"ticket_id": ticket_id, "user_id": user_id}, {"$set": {"read_by_user": True}})
+    return {"message": "Marked as read"}
+
+# ─── File Upload for Tickets ───
+@api_router.post("/support/upload")
+async def upload_ticket_file(request: Request):
+    """Accept base64 file data and store metadata."""
+    user = await get_current_user(request)
+    body = await request.json()
+    file_name = body.get("file_name", "attachment")
+    file_type = body.get("file_type", "application/octet-stream")
+    file_size = body.get("file_size", 0)
+    file_data = body.get("file_data", "")  # base64
+
+    if file_size > 5 * 1024 * 1024:  # 5MB limit
+        raise HTTPException(status_code=400, detail="File too large. Maximum 5MB allowed.")
+
+    file_id = str(uuid.uuid4())
+    file_doc = {
+        "file_id": file_id,
+        "file_name": file_name,
+        "file_type": file_type,
+        "file_size": file_size,
+        "file_data": file_data,
+        "uploaded_by": user.get("user_id", ""),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.uploaded_files.insert_one(file_doc)
+    file_doc.pop("_id", None)
+    file_doc.pop("file_data", None)  # Don't return the data
+    return file_doc
 
 @api_router.patch("/support/tickets/{ticket_id}")
 async def update_ticket(ticket_id: str, request: Request):
@@ -1419,6 +1482,46 @@ async def buy_credits(request: Request):
     return {"message": f"Added {pack['name']}!", "payment_id": payment_id}
 
 
+# ─── Custom Credits Purchase ───
+PRICE_PER_MESSAGE = 0.5  # NPR per message credit
+
+@api_router.post("/billing/buy-custom")
+async def buy_custom_credits(request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    body = await request.json()
+    credit_type = body.get("type", "messages")  # "messages" or "agents"
+    quantity = body.get("quantity", 0)
+    payment_method = body.get("payment_method", "khalti")
+
+    if credit_type == "messages":
+        if not isinstance(quantity, int) or quantity < 100:
+            raise HTTPException(status_code=400, detail="Minimum purchase is 100 message credits")
+        price = int(quantity * PRICE_PER_MESSAGE)
+        current = user.get("message_quota", 1000)
+        await db.users.update_one({"user_id": user_id}, {"$set": {"message_quota": current + quantity}})
+        item_name = f"{quantity:,} Messages"
+    elif credit_type == "agents":
+        if not isinstance(quantity, int) or quantity < 1:
+            raise HTTPException(status_code=400, detail="Minimum purchase is 1 agent slot")
+        price = quantity * 999
+        current_extra = user.get("extra_agents", 0)
+        await db.users.update_one({"user_id": user_id}, {"$set": {"extra_agents": current_extra + quantity}})
+        item_name = f"+{quantity} Agent Slot{'s' if quantity > 1 else ''}"
+    else:
+        raise HTTPException(status_code=400, detail="Invalid credit type")
+
+    payment_id = str(uuid.uuid4())
+    await db.payments.insert_one({
+        "payment_id": payment_id, "user_id": user_id,
+        "pack_id": f"custom_{credit_type}_{quantity}",
+        "plan_id": "credits", "amount": price, "currency": "NPR",
+        "method": payment_method, "status": "completed",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    return {"message": f"Added {item_name}!", "payment_id": payment_id, "amount": price}
+
+
 # ─── Order Refund ───
 @api_router.post("/orders/{order_id}/refund")
 async def refund_order(order_id: str, request: Request):
@@ -1463,6 +1566,141 @@ async def update_agent_settings(agent_id: str, input_data: AgentSettingsInput, r
     if updates:
         await db.agents.update_one({"agent_id": agent_id}, {"$set": updates})
     updated = await db.agents.find_one({"agent_id": agent_id}, {"_id": 0})
+    return updated
+
+
+# ─── Hotel: Rooms ───
+class RoomInput(BaseModel):
+    room_type: str
+    room_number: Optional[str] = ""
+    price_per_night: float
+    capacity: Optional[int] = 2
+    amenities: Optional[List[str]] = []
+    description: Optional[str] = ""
+    is_available: Optional[bool] = True
+
+@api_router.post("/agents/{agent_id}/rooms")
+async def create_room(agent_id: str, input_data: RoomInput, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    room_id = str(uuid.uuid4())
+    room_doc = {
+        **input_data.model_dump(), "room_id": room_id, "agent_id": agent_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.rooms.insert_one(room_doc)
+    room_doc.pop("_id", None)
+    return room_doc
+
+@api_router.get("/agents/{agent_id}/rooms")
+async def list_rooms(agent_id: str, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    rooms = await db.rooms.find({"agent_id": agent_id}, {"_id": 0}).to_list(200)
+    return rooms
+
+@api_router.put("/agents/{agent_id}/rooms/{room_id}")
+async def update_room(agent_id: str, room_id: str, input_data: RoomInput, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    result = await db.rooms.update_one({"room_id": room_id, "agent_id": agent_id}, {"$set": input_data.model_dump()})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Room not found")
+    room = await db.rooms.find_one({"room_id": room_id}, {"_id": 0})
+    return room
+
+@api_router.delete("/agents/{agent_id}/rooms/{room_id}")
+async def delete_room(agent_id: str, room_id: str, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    result = await db.rooms.delete_one({"room_id": room_id, "agent_id": agent_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Room not found")
+    return {"message": "Room deleted"}
+
+
+# ─── Hotel: Bookings ───
+BOOKING_STATUSES = ["pending", "confirmed", "checked_in", "checked_out", "cancelled"]
+
+class BookingInput(BaseModel):
+    agent_id: str
+    room_id: str
+    guest_name: str
+    guest_email: Optional[str] = ""
+    guest_phone: Optional[str] = ""
+    check_in: str
+    check_out: str
+    total_amount: float
+    notes: Optional[str] = ""
+
+@api_router.post("/bookings")
+async def create_booking(input_data: BookingInput, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    agent = await db.agents.find_one({"agent_id": input_data.agent_id, "client_id": user_id})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    booking_id = f"BKG-{uuid.uuid4().hex[:8].upper()}"
+    now = datetime.now(timezone.utc).isoformat()
+    booking_doc = {
+        "booking_id": booking_id, "agent_id": input_data.agent_id, "client_id": user_id,
+        "room_id": input_data.room_id, "guest_name": input_data.guest_name,
+        "guest_email": input_data.guest_email, "guest_phone": input_data.guest_phone,
+        "check_in": input_data.check_in, "check_out": input_data.check_out,
+        "total_amount": input_data.total_amount, "notes": input_data.notes,
+        "booking_status": "pending", "payment_status": "unpaid",
+        "status_history": [{"status": "pending", "timestamp": now}],
+        "created_at": now, "updated_at": now,
+    }
+    await db.bookings.insert_one(booking_doc)
+    booking_doc.pop("_id", None)
+    return booking_doc
+
+@api_router.get("/bookings")
+async def list_bookings(request: Request, agent_id: Optional[str] = None, status: Optional[str] = None):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    query = {"client_id": user_id}
+    if agent_id:
+        query["agent_id"] = agent_id
+    if status:
+        query["booking_status"] = status
+    bookings = await db.bookings.find(query, {"_id": 0}).sort("created_at", -1).to_list(500)
+    return bookings
+
+@api_router.patch("/bookings/{booking_id}/status")
+async def update_booking_status(booking_id: str, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    body = await request.json()
+    new_status = body.get("status", "")
+    if new_status not in BOOKING_STATUSES:
+        raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {BOOKING_STATUSES}")
+    booking = await db.bookings.find_one({"booking_id": booking_id, "client_id": user_id})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    now = datetime.now(timezone.utc).isoformat()
+    history = booking.get("status_history", [])
+    history.append({"status": new_status, "timestamp": now})
+    payment_status = booking.get("payment_status", "unpaid")
+    if new_status == "confirmed":
+        payment_status = "paid"
+    elif new_status == "cancelled":
+        payment_status = "refunded" if payment_status == "paid" else "cancelled"
+    await db.bookings.update_one({"booking_id": booking_id}, {"$set": {"booking_status": new_status, "payment_status": payment_status, "status_history": history, "updated_at": now}})
+    updated = await db.bookings.find_one({"booking_id": booking_id}, {"_id": 0})
     return updated
 
 
@@ -1549,6 +1787,9 @@ async def startup():
     await db.orders.create_index([("client_id", 1), ("created_at", -1)])
     await db.notifications.create_index([("user_id", 1), ("created_at", -1)])
     await db.notifications.create_index([("user_id", 1), ("read", 1)])
+    await db.rooms.create_index("agent_id")
+    await db.bookings.create_index([("client_id", 1), ("created_at", -1)])
+    await db.bookings.create_index("agent_id")
 
     # Seed admin
     admin_email = os.environ.get("ADMIN_EMAIL", "admin@nurekha.com")
