@@ -98,7 +98,7 @@ class RegisterInput(BaseModel):
     email: str
     mobile: str
     business_name: str
-    business_types: List[str]
+    business_types: Optional[List[str]] = []
     password: str
 
 class LoginInput(BaseModel):
@@ -383,8 +383,11 @@ async def exchange_session(input_data: SessionInput, response: Response):
 
 
 # ─── Agent Endpoints ───
+BUSINESS_TYPES = ["E-commerce", "Hotel", "Salon/Spa", "Restaurant", "Healthcare", "Real Estate", "Travel", "Education", "Other"]
+
 class CreateAgentInput(BaseModel):
     name: str
+    business_type: Optional[str] = "Other"
 
 @api_router.post("/agents")
 async def create_agent(input_data: CreateAgentInput, request: Request):
@@ -395,14 +398,19 @@ async def create_agent(input_data: CreateAgentInput, request: Request):
     count = await db.agents.count_documents({"client_id": user_id})
     plan = user.get("plan_id", "free")
     limit = 2 if plan == "free" else 10
-    if count >= limit:
-        raise HTTPException(status_code=403, detail=f"Agent limit reached ({limit} on {plan} plan)")
+    extra = user.get("extra_agents", 0)
+    if count >= (limit + extra):
+        raise HTTPException(status_code=403, detail=f"Agent limit reached ({limit + extra} on {plan} plan)")
+
+    # Validate business type
+    biz_type = input_data.business_type if input_data.business_type in BUSINESS_TYPES else "Other"
 
     agent_id = str(uuid.uuid4())
     agent_doc = {
         "agent_id": agent_id,
         "client_id": user_id,
         "name": input_data.name,
+        "business_type": biz_type,
         "image_url": "",
         "status": "active",
         "response_tone": "friendly",
@@ -416,6 +424,18 @@ async def create_agent(input_data: CreateAgentInput, request: Request):
     }
     await db.agents.insert_one(agent_doc)
     agent_doc.pop("_id", None)
+
+    # Create notification
+    await db.notifications.insert_one({
+        "notification_id": str(uuid.uuid4()),
+        "user_id": user_id,
+        "type": "agent_created",
+        "title": "Agent Created",
+        "message": f"Your agent '{input_data.name}' has been created successfully.",
+        "read": False,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+
     return agent_doc
 
 
@@ -810,7 +830,39 @@ async def agent_stats(agent_id: str, request: Request):
     msg_count = await db.messages.count_documents({"agent_id": agent_id})
     faq_count = await db.faqs.count_documents({"agent_id": agent_id})
     product_count = await db.products.count_documents({"agent_id": agent_id})
-    return {**agent, "channel_count": channel_count, "conversation_count": conv_count, "message_count": msg_count, "faq_count": faq_count, "product_count": product_count}
+
+    # Message distribution by sender type (for pie chart)
+    agent_msgs = await db.messages.count_documents({"agent_id": agent_id, "sender_type": "agent"})
+    user_msgs = await db.messages.count_documents({"agent_id": agent_id, "sender_type": "user"})
+    bot_msgs = await db.messages.count_documents({"agent_id": agent_id, "sender_type": "bot"})
+    message_distribution = [
+        {"name": "Agent", "value": agent_msgs},
+        {"name": "User", "value": user_msgs},
+        {"name": "Bot", "value": bot_msgs},
+    ]
+
+    # Daily message counts for last 7 days
+    daily_activity = []
+    for i in range(6, -1, -1):
+        day = datetime.now(timezone.utc) - timedelta(days=i)
+        day_start = day.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+        day_end = day.replace(hour=23, minute=59, second=59, microsecond=999999).isoformat()
+        day_count = await db.messages.count_documents({
+            "agent_id": agent_id,
+            "created_at": {"$gte": day_start, "$lte": day_end}
+        })
+        daily_activity.append({"day": day.strftime("%a"), "date": day.strftime("%m/%d"), "messages": day_count})
+
+    return {
+        **agent,
+        "channel_count": channel_count,
+        "conversation_count": conv_count,
+        "message_count": msg_count,
+        "faq_count": faq_count,
+        "product_count": product_count,
+        "message_distribution": message_distribution,
+        "daily_activity": daily_activity,
+    }
 
 
 # ─── Dashboard Stats ───
@@ -819,11 +871,39 @@ async def dashboard_stats(request: Request):
     user = await get_current_user(request)
     user_id = user.get("user_id") or str(user.get("_id", ""))
     agent_count = await db.agents.count_documents({"client_id": user_id})
+
+    # Get all agents for this user
+    agents = await db.agents.find({"client_id": user_id}, {"agent_id": 1, "name": 1, "_id": 0}).to_list(100)
+    agent_ids = [a["agent_id"] for a in agents]
+
+    # Message counts per agent (for pie chart)
+    agent_message_distribution = []
+    total_messages = 0
+    for a in agents:
+        msg_count = await db.messages.count_documents({"agent_id": a["agent_id"]})
+        agent_message_distribution.append({"name": a.get("name", "Agent"), "value": msg_count})
+        total_messages += msg_count
+
+    # Daily message counts for last 7 days (for bar chart)
+    daily_usage = []
+    for i in range(6, -1, -1):
+        day = datetime.now(timezone.utc) - timedelta(days=i)
+        day_start = day.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+        day_end = (day.replace(hour=23, minute=59, second=59, microsecond=999999)).isoformat()
+        day_count = await db.messages.count_documents({
+            "agent_id": {"$in": agent_ids},
+            "created_at": {"$gte": day_start, "$lte": day_end}
+        }) if agent_ids else 0
+        daily_usage.append({"day": day.strftime("%a"), "date": day.strftime("%m/%d"), "messages": day_count})
+
     return {
         "message_quota": user.get("message_quota", 1000),
         "messages_used": user.get("messages_used", 0),
         "remaining": user.get("message_quota", 1000) - user.get("messages_used", 0),
         "active_agents": agent_count,
+        "total_messages": total_messages,
+        "agent_message_distribution": agent_message_distribution,
+        "daily_usage": daily_usage,
     }
 
 
@@ -1237,10 +1317,24 @@ async def list_tickets(request: Request):
 @api_router.post("/support/tickets/{ticket_id}/reply")
 async def reply_ticket(ticket_id: str, request: Request):
     user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
     body = await request.json()
     reply = {"sender": user.get("full_name", "User"), "message": body.get("message", ""), "created_at": datetime.now(timezone.utc).isoformat()}
     await db.tickets.update_one({"ticket_id": ticket_id}, {"$push": {"replies": reply}, "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}})
     ticket = await db.tickets.find_one({"ticket_id": ticket_id}, {"_id": 0})
+
+    # Create notification for ticket update
+    ticket_user_id = ticket.get("user_id", user_id)
+    await db.notifications.insert_one({
+        "notification_id": str(uuid.uuid4()),
+        "user_id": ticket_user_id,
+        "type": "ticket_reply",
+        "title": "Ticket Updated",
+        "message": f"New reply on ticket {ticket_id}: {ticket.get('subject', '')}",
+        "read": False,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+
     return ticket
 
 @api_router.patch("/support/tickets/{ticket_id}")
@@ -1372,6 +1466,48 @@ async def update_agent_settings(agent_id: str, input_data: AgentSettingsInput, r
     return updated
 
 
+# ─── Business Types ───
+@api_router.get("/business-types")
+async def get_business_types():
+    return BUSINESS_TYPES
+
+
+# ─── Notifications ───
+@api_router.get("/notifications")
+async def list_notifications(request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    notifications = await db.notifications.find({"user_id": user_id}, {"_id": 0}).sort("created_at", -1).to_list(50)
+    return notifications
+
+@api_router.get("/notifications/unread-count")
+async def unread_notification_count(request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    count = await db.notifications.count_documents({"user_id": user_id, "read": False})
+    return {"count": count}
+
+@api_router.patch("/notifications/{notification_id}/read")
+async def mark_notification_read(notification_id: str, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    await db.notifications.update_one(
+        {"notification_id": notification_id, "user_id": user_id},
+        {"$set": {"read": True}}
+    )
+    return {"message": "Marked as read"}
+
+@api_router.post("/notifications/mark-all-read")
+async def mark_all_notifications_read(request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    await db.notifications.update_many(
+        {"user_id": user_id, "read": False},
+        {"$set": {"read": True}}
+    )
+    return {"message": "All marked as read"}
+
+
 # ─── Health ───
 @api_router.get("/")
 async def root():
@@ -1411,6 +1547,8 @@ async def startup():
     await db.messages.create_index("conv_id")
     await db.payments.create_index("user_id")
     await db.orders.create_index([("client_id", 1), ("created_at", -1)])
+    await db.notifications.create_index([("user_id", 1), ("created_at", -1)])
+    await db.notifications.create_index([("user_id", 1), ("read", 1)])
 
     # Seed admin
     admin_email = os.environ.get("ADMIN_EMAIL", "admin@nurekha.com")

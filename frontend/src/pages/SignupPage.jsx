@@ -4,11 +4,6 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Eye, EyeOff, CheckCircle, X, Loader2 } from "lucide-react";
 
-const BUSINESS_TYPES = [
-  "E-commerce", "Hotel", "Salon/Spa", "Restaurant",
-  "Healthcare", "Real Estate", "Travel", "Education", "Other",
-];
-
 function formatError(detail) {
   if (detail == null) return "Something went wrong.";
   if (typeof detail === "string") return detail;
@@ -33,21 +28,14 @@ function PasswordStrength({ password }) {
 export default function SignupPage() {
   const { register } = useAuth();
   const navigate = useNavigate();
-  const [form, setForm] = useState({ full_name: "", mobile: "", email: "", business_name: "", business_types: [], password: "", confirm_password: "" });
+  const [form, setForm] = useState({ full_name: "", mobile: "", email: "", business_name: "", password: "", confirm_password: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
-  const [typesOpen, setTypesOpen] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [terms, setTerms] = useState(false);
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
-
-  const toggleType = (t) => {
-    set("business_types", form.business_types.includes(t)
-      ? form.business_types.filter(x => x !== t)
-      : [...form.business_types, t]);
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -56,7 +44,6 @@ export default function SignupPage() {
     if (!/^(98|97)\d{8}$/.test(form.mobile)) return setError("Enter a valid Nepal mobile number (98/97 + 8 digits)");
     if (!form.email || !/\S+@\S+\.\S+/.test(form.email)) return setError("Enter a valid email");
     if (!form.business_name) return setError("Business name is required");
-    if (form.business_types.length === 0) return setError("Select at least one business type");
     if (form.password.length < 8) return setError("Password must be at least 8 characters");
     if (!/[A-Z]/.test(form.password)) return setError("Password needs at least one uppercase letter");
     if (!/[0-9]/.test(form.password)) return setError("Password needs at least one number");
@@ -70,7 +57,7 @@ export default function SignupPage() {
         email: form.email,
         mobile: form.mobile,
         business_name: form.business_name,
-        business_types: form.business_types,
+        business_types: [],
         password: form.password,
       });
       navigate("/dashboard");
@@ -161,36 +148,6 @@ export default function SignupPage() {
             <div>
               <label className="block text-sm font-medium text-[#0C0A09] mb-1.5">Business Name</label>
               <input data-testid="signup-business" value={form.business_name} onChange={e => set("business_name", e.target.value)} className="w-full border border-[#E7E5E4] rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-[#1C1917] focus:border-transparent outline-none" placeholder="Your business name" />
-            </div>
-
-            {/* Business Types */}
-            <div>
-              <label className="block text-sm font-medium text-[#0C0A09] mb-1.5">Business Type</label>
-              {form.business_types.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mb-2">
-                  {form.business_types.map(t => (
-                    <span key={t} className="bg-[#F5F0EB] text-[#1C1917] text-xs rounded-full px-2.5 py-1 inline-flex items-center gap-1">
-                      {t}
-                      <button type="button" onClick={() => toggleType(t)} className="hover:text-[#991B1B]"><X className="w-3 h-3" /></button>
-                    </span>
-                  ))}
-                </div>
-              )}
-              <button type="button" data-testid="signup-types-toggle" onClick={() => setTypesOpen(!typesOpen)} className="w-full border border-[#E7E5E4] rounded-lg px-3 py-2.5 text-sm text-left text-[#A8A29E] hover:bg-[#FAFAFA]">
-                {form.business_types.length > 0 ? `${form.business_types.length} selected` : "Select business types..."}
-              </button>
-              {typesOpen && (
-                <div className="mt-1 border border-[#E7E5E4] rounded-xl bg-white shadow-lg z-50 overflow-hidden">
-                  {BUSINESS_TYPES.map(t => (
-                    <button key={t} type="button" data-testid={`type-${t.toLowerCase().replace(/[\s\/]+/g, "-")}`} onClick={() => toggleType(t)} className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-[#FAFAFA] ${form.business_types.includes(t) ? "bg-[#F5F0EB]" : ""}`}>
-                      <div className={`w-4 h-4 rounded border flex items-center justify-center ${form.business_types.includes(t) ? "bg-[#0C0A09] border-[#0C0A09]" : "border-[#D6D3D1]"}`}>
-                        {form.business_types.includes(t) && <CheckCircle className="w-3 h-3 text-white" />}
-                      </div>
-                      {t}
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
 
             {/* Password */}

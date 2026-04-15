@@ -1,172 +1,88 @@
 {
   "summary": {
-    "total_tests": 27,
-    "passed_tests": 26,
-    "success_rate": 96.29629629629629,
-    "timestamp": "2026-04-14T04:39:24.702484"
+    "total_tests": 13,
+    "passed_tests": 13,
+    "success_rate": 100.0,
+    "timestamp": "2026-04-15T03:56:04.431604"
   },
   "test_results": [
     {
       "test": "API Health Check",
       "success": true,
       "details": "Status: 200, Response: {\"message\":\"Nurekha API v1\"}",
-      "timestamp": "2026-04-14T04:39:16.847713"
+      "timestamp": "2026-04-15T03:56:03.303318"
     },
     {
       "test": "Admin Login",
       "success": true,
       "details": "Logged in as: admin@nurekha.com, Role: admin",
-      "timestamp": "2026-04-14T04:39:17.126125"
+      "timestamp": "2026-04-15T03:56:03.572371"
     },
     {
-      "test": "Auth Me Endpoint",
+      "test": "Auth Register Without business_types",
       "success": true,
-      "details": "User: admin@nurekha.com, Role: admin",
-      "timestamp": "2026-04-14T04:39:17.168538"
+      "details": "Registered user: testuser123035603@test.com, business_types defaulted to []",
+      "timestamp": "2026-04-15T03:56:03.840019"
     },
     {
-      "test": "Dashboard Stats",
+      "test": "Agent Creation with business_type",
       "success": true,
-      "details": "Quota: 100000, Used: 0, Agents: 4",
-      "timestamp": "2026-04-14T04:39:17.215689"
+      "details": "Created agent: Hotel Bot with business_type: Hotel",
+      "timestamp": "2026-04-15T03:56:03.888148"
     },
     {
-      "test": "List Agents",
+      "test": "Agent Rename",
       "success": true,
-      "details": "Found 4 agents",
-      "timestamp": "2026-04-14T04:39:17.259646"
+      "details": "Successfully renamed agent to: Renamed Bot",
+      "timestamp": "2026-04-15T03:56:03.934484"
     },
     {
-      "test": "Bulk FAQ Upload",
+      "test": "Agent Deactivate",
       "success": true,
-      "details": "Imported 3 FAQs",
-      "timestamp": "2026-04-14T04:39:17.315503"
+      "details": "Successfully deactivated agent, status: inactive",
+      "timestamp": "2026-04-15T03:56:03.978446"
     },
     {
-      "test": "Bulk Product Upload",
+      "test": "Agent Stats with Charts",
       "success": true,
-      "details": "Imported 2 products",
-      "timestamp": "2026-04-14T04:39:17.364287"
+      "details": "Agent stats with charts - message_distribution: 3 items, daily_activity: 7 items",
+      "timestamp": "2026-04-15T03:56:04.100628"
     },
     {
-      "test": "Agent Test Chat",
+      "test": "GET /api/notifications",
       "success": true,
-      "details": "Response: We are open Monday to Friday, 9 AM to 6 PM...., Source: FAQ",
-      "timestamp": "2026-04-14T04:39:17.407689"
+      "details": "Found 1 notifications",
+      "timestamp": "2026-04-15T03:56:04.147359"
     },
     {
-      "test": "Agent Settings",
+      "test": "GET /api/notifications/unread-count",
       "success": true,
-      "details": "Updated agent settings: Test Support Agent",
-      "timestamp": "2026-04-14T04:39:17.454595"
+      "details": "Unread count: 0",
+      "timestamp": "2026-04-15T03:56:04.204010"
     },
     {
-      "test": "Create Support Ticket",
+      "test": "PATCH /api/notifications/{id}/read",
       "success": true,
-      "details": "Created ticket: TKT-B44783A7",
-      "timestamp": "2026-04-14T04:39:17.523003"
+      "details": "Successfully marked notification 2e0cbff2-2ae... as read",
+      "timestamp": "2026-04-15T03:56:04.250967"
     },
     {
-      "test": "List Support Tickets",
+      "test": "POST /api/notifications/mark-all-read",
       "success": true,
-      "details": "Found 1 tickets",
-      "timestamp": "2026-04-14T04:39:17.566503"
+      "details": "Marked 0 notifications as read",
+      "timestamp": "2026-04-15T03:56:04.337821"
     },
     {
-      "test": "Profile Update",
+      "test": "Dashboard Stats with Charts",
       "success": true,
-      "details": "Updated profile: Updated Admin Name",
-      "timestamp": "2026-04-14T04:39:17.612078"
+      "details": "Dashboard stats with charts - agent_distribution: 1 items, daily_usage: 7 items",
+      "timestamp": "2026-04-15T03:56:04.387873"
     },
     {
-      "test": "Change Password",
+      "test": "Business Types Endpoint",
       "success": true,
-      "details": "Password changed successfully",
-      "timestamp": "2026-04-14T04:39:18.599325"
-    },
-    {
-      "test": "Billing Plans",
-      "success": true,
-      "details": "Found 3 plans: ['free', 'pro', 'enterprise']",
-      "timestamp": "2026-04-14T04:39:18.650823"
-    },
-    {
-      "test": "Billing Credits",
-      "success": true,
-      "details": "Found 5 credit packs",
-      "timestamp": "2026-04-14T04:39:18.695062"
-    },
-    {
-      "test": "Buy Credits",
-      "success": true,
-      "details": "Purchase result: Added 1,000 Messages!",
-      "timestamp": "2026-04-14T04:39:18.740366"
-    },
-    {
-      "test": "Billing Initiate Khalti",
-      "success": true,
-      "details": "Payment ID: df603922-888..., Has URL: True",
-      "timestamp": "2026-04-14T04:39:19.941701"
-    },
-    {
-      "test": "Billing Initiate eSewa",
-      "success": true,
-      "details": "Payment ID: f66e2a58-35d..., Has eSewa form: True",
-      "timestamp": "2026-04-14T04:39:19.985138"
-    },
-    {
-      "test": "Billing Verify",
-      "success": true,
-      "details": "Status: failed",
-      "timestamp": "2026-04-14T04:39:20.973976"
-    },
-    {
-      "test": "Billing History",
-      "success": true,
-      "details": "Found 7 payment records",
-      "timestamp": "2026-04-14T04:39:21.017315"
-    },
-    {
-      "test": "List Orders",
-      "success": true,
-      "details": "Found 5 orders",
-      "timestamp": "2026-04-14T04:39:21.108909"
-    },
-    {
-      "test": "Update Order Status",
-      "success": true,
-      "details": "Updated order ORD-00A2A457... to status: confirmed",
-      "timestamp": "2026-04-14T04:39:21.157547"
-    },
-    {
-      "test": "Order Refund",
-      "success": true,
-      "details": "Refunded order ORD-00A2A457..., Status: refunded",
-      "timestamp": "2026-04-14T04:39:21.249394"
-    },
-    {
-      "test": "WebSocket Connection",
-      "success": false,
-      "details": "Connected: False, Message received: False",
-      "timestamp": "2026-04-14T04:39:24.346938"
-    },
-    {
-      "test": "Forgot Password",
-      "success": true,
-      "details": "Forgot password request accepted",
-      "timestamp": "2026-04-14T04:39:24.390961"
-    },
-    {
-      "test": "User Registration",
-      "success": true,
-      "details": "Registered user: test043924@example.com",
-      "timestamp": "2026-04-14T04:39:24.660380"
-    },
-    {
-      "test": "Logout",
-      "success": true,
-      "details": "Logout successful",
-      "timestamp": "2026-04-14T04:39:24.702343"
+      "details": "Found 9 business types: ['E-commerce', 'Hotel', 'Salon/Spa']...",
+      "timestamp": "2026-04-15T03:56:04.431424"
     }
   ]
 }

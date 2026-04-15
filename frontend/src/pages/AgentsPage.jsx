@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
-import { Bot, Plus, MoreHorizontal, Pencil, Trash2, PauseCircle, Copy, Loader2, AlertTriangle } from "lucide-react";
+import { Bot, Plus, MoreHorizontal, Pencil, Trash2, PauseCircle, PlayCircle, Copy, Loader2, AlertTriangle, Check, ChevronDown } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
@@ -13,10 +13,15 @@ import axios from "axios";
 
 const API = process.env.REACT_APP_BACKEND_URL;
 
+const BUSINESS_TYPES = [
+  "E-commerce", "Hotel", "Salon/Spa", "Restaurant",
+  "Healthcare", "Real Estate", "Travel", "Education", "Other",
+];
+
 const containerVariants = { hidden: {}, visible: { transition: { staggerChildren: 0.06 } } };
 const itemVariants = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.4 } } };
 
-function AgentCard({ agent, onDelete }) {
+function AgentCard({ agent, onDelete, onRename, onToggleStatus }) {
   const [copied, setCopied] = useState(false);
   const initials = agent.name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
 
@@ -25,6 +30,8 @@ function AgentCard({ agent, onDelete }) {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  const isActive = agent.status === "active";
 
   return (
     <motion.div
@@ -42,8 +49,13 @@ function AgentCard({ agent, onDelete }) {
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem><Pencil className="w-3.5 h-3.5 mr-2" /> Rename</DropdownMenuItem>
-          <DropdownMenuItem><PauseCircle className="w-3.5 h-3.5 mr-2" /> Deactivate</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onRename(agent)}>
+            <Pencil className="w-3.5 h-3.5 mr-2" /> Rename
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onToggleStatus(agent)}>
+            {isActive ? <PauseCircle className="w-3.5 h-3.5 mr-2" /> : <PlayCircle className="w-3.5 h-3.5 mr-2" />}
+            {isActive ? "Deactivate" : "Activate"}
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem className="text-[#991B1B]" onClick={() => onDelete(agent.agent_id)}>
             <Trash2 className="w-3.5 h-3.5 mr-2" /> Delete
@@ -70,12 +82,17 @@ function AgentCard({ agent, onDelete }) {
         </div>
       </div>
 
-      {/* Status Badge */}
-      <div className="mt-3">
-        <span className={`inline-flex items-center gap-1.5 text-xs rounded-full px-2.5 py-0.5 ${agent.status === "active" ? "bg-[#F0FDF4] text-[#166534]" : "bg-[#F5F5F4] text-[#57534E]"}`}>
-          <span className={`w-1.5 h-1.5 rounded-full ${agent.status === "active" ? "bg-[#166534]" : "bg-[#A8A29E]"}`} />
+      {/* Status Badge & Business Type */}
+      <div className="mt-3 flex items-center gap-2 flex-wrap">
+        <span className={`inline-flex items-center gap-1.5 text-xs rounded-full px-2.5 py-0.5 ${isActive ? "bg-[#F0FDF4] text-[#166534]" : "bg-[#FEF2F2] text-[#991B1B]"}`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${isActive ? "bg-[#166534]" : "bg-[#991B1B]"}`} />
           {agent.status}
         </span>
+        {agent.business_type && (
+          <span className="inline-flex items-center text-xs rounded-full px-2.5 py-0.5 bg-[#F5F0EB] text-[#57534E]">
+            {agent.business_type}
+          </span>
+        )}
       </div>
 
       {/* Stats */}
@@ -97,30 +114,39 @@ export default function AgentsPage() {
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
+  const [newBusinessType, setNewBusinessType] = useState("");
+  const [bizTypeOpen, setBizTypeOpen] = useState(false);
   const [creating, setCreating] = useState(false);
 
+  // Rename state
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameAgent, setRenameAgent] = useState(null);
+  const [renameName, setRenameName] = useState("");
+  const [renaming, setRenaming] = useState(false);
+
   const plan = user?.plan_id || "free";
-  const limit = plan === "free" ? 2 : 10;
+  const limit = (plan === "free" ? 2 : plan === "pro" ? 5 : 10) + (user?.extra_agents || 0);
   const atLimit = agents.length >= limit;
 
-  const fetchAgents = async () => {
+  const fetchAgents = useCallback(async () => {
     try {
       const { data } = await axios.get(`${API}/api/agents`, { withCredentials: true });
       setAgents(data);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
-  };
+  }, []);
 
-  useEffect(() => { fetchAgents(); }, []);
+  useEffect(() => { fetchAgents(); }, [fetchAgents]);
 
   const handleCreate = async () => {
-    if (!newName.trim()) return;
+    if (!newName.trim() || !newBusinessType) return;
     setCreating(true);
     try {
-      await axios.post(`${API}/api/agents`, { name: newName }, { withCredentials: true });
+      const { data } = await axios.post(`${API}/api/agents`, { name: newName, business_type: newBusinessType }, { withCredentials: true });
+      setAgents(prev => [...prev, data]);
       setNewName("");
+      setNewBusinessType("");
       setCreateOpen(false);
-      fetchAgents();
     } catch (err) { console.error(err); }
     finally { setCreating(false); }
   };
@@ -128,7 +154,33 @@ export default function AgentsPage() {
   const handleDelete = async (agentId) => {
     try {
       await axios.delete(`${API}/api/agents/${agentId}`, { withCredentials: true });
-      fetchAgents();
+      setAgents(prev => prev.filter(a => a.agent_id !== agentId));
+    } catch (err) { console.error(err); }
+  };
+
+  const handleRenameOpen = (agent) => {
+    setRenameAgent(agent);
+    setRenameName(agent.name);
+    setRenameOpen(true);
+  };
+
+  const handleRenameSubmit = async () => {
+    if (!renameName.trim() || !renameAgent) return;
+    setRenaming(true);
+    try {
+      const { data } = await axios.patch(`${API}/api/agents/${renameAgent.agent_id}`, { name: renameName }, { withCredentials: true });
+      setAgents(prev => prev.map(a => a.agent_id === renameAgent.agent_id ? data : a));
+      setRenameOpen(false);
+      setRenameAgent(null);
+    } catch (err) { console.error(err); }
+    finally { setRenaming(false); }
+  };
+
+  const handleToggleStatus = async (agent) => {
+    const newStatus = agent.status === "active" ? "inactive" : "active";
+    try {
+      const { data } = await axios.patch(`${API}/api/agents/${agent.agent_id}`, { status: newStatus }, { withCredentials: true });
+      setAgents(prev => prev.map(a => a.agent_id === agent.agent_id ? data : a));
     } catch (err) { console.error(err); }
   };
 
@@ -180,37 +232,110 @@ export default function AgentsPage() {
       ) : (
         <motion.div variants={containerVariants} initial="hidden" animate="visible" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {agents.map(agent => (
-            <AgentCard key={agent.agent_id} agent={agent} onDelete={handleDelete} />
+            <AgentCard
+              key={agent.agent_id}
+              agent={agent}
+              onDelete={handleDelete}
+              onRename={handleRenameOpen}
+              onToggleStatus={handleToggleStatus}
+            />
           ))}
         </motion.div>
       )}
 
       {/* Create Agent Dialog */}
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+      <Dialog open={createOpen} onOpenChange={(open) => { setCreateOpen(open); if (!open) { setNewName(""); setNewBusinessType(""); setBizTypeOpen(false); } }}>
         <DialogContent className="sm:max-w-md" data-testid="create-agent-dialog">
           <DialogHeader>
             <DialogTitle className="font-serif text-xl">Create new agent</DialogTitle>
           </DialogHeader>
-          <div className="py-4">
-            <label className="block text-sm font-medium text-[#0C0A09] mb-1.5">Agent Name</label>
-            <input
-              data-testid="agent-name-input"
-              value={newName}
-              onChange={e => setNewName(e.target.value)}
-              className="w-full border border-[#E7E5E4] rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-[#1C1917] focus:border-transparent outline-none"
-              placeholder="e.g. Kathmandu Shop Assistant"
-              onKeyDown={e => e.key === "Enter" && handleCreate()}
-            />
+          <div className="py-4 space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-[#0C0A09] mb-1.5">Agent Name</label>
+              <input
+                data-testid="agent-name-input"
+                value={newName}
+                onChange={e => setNewName(e.target.value)}
+                className="w-full border border-[#E7E5E4] rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-[#1C1917] focus:border-transparent outline-none"
+                placeholder="e.g. Kathmandu Shop Assistant"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-[#0C0A09] mb-1.5">Business Type</label>
+              <p className="text-xs text-[#57534E] mb-2">Select the type of business this agent will serve. This determines available features.</p>
+              <div className="relative">
+                <button
+                  type="button"
+                  data-testid="business-type-select"
+                  onClick={() => setBizTypeOpen(!bizTypeOpen)}
+                  className="w-full border border-[#E7E5E4] rounded-lg px-3 py-2.5 text-sm text-left hover:bg-[#FAFAFA] flex items-center justify-between"
+                >
+                  <span className={newBusinessType ? "text-[#0C0A09]" : "text-[#A8A29E]"}>
+                    {newBusinessType || "Select business type..."}
+                  </span>
+                  <ChevronDown className={`w-4 h-4 text-[#A8A29E] transition-transform ${bizTypeOpen ? "rotate-180" : ""}`} />
+                </button>
+                {bizTypeOpen && (
+                  <div className="absolute top-full left-0 right-0 mt-1 border border-[#E7E5E4] rounded-xl bg-white shadow-lg z-50 overflow-hidden max-h-60 overflow-y-auto">
+                    {BUSINESS_TYPES.map(t => (
+                      <button
+                        key={t}
+                        type="button"
+                        data-testid={`biz-type-${t.toLowerCase().replace(/[\s\/]+/g, "-")}`}
+                        onClick={() => { setNewBusinessType(t); setBizTypeOpen(false); }}
+                        className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-[#FAFAFA] ${newBusinessType === t ? "bg-[#F5F0EB]" : ""}`}
+                      >
+                        <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${newBusinessType === t ? "bg-[#0C0A09] border-[#0C0A09]" : "border-[#D6D3D1]"}`}>
+                          {newBusinessType === t && <Check className="w-3 h-3 text-white" />}
+                        </div>
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
           <DialogFooter className="gap-2">
             <button onClick={() => setCreateOpen(false)} className="h-10 px-4 border border-[#E7E5E4] rounded-lg text-sm text-[#0C0A09] hover:bg-[#FAFAFA]">Cancel</button>
             <button
               data-testid="confirm-create-agent"
               onClick={handleCreate}
-              disabled={creating || !newName.trim()}
+              disabled={creating || !newName.trim() || !newBusinessType}
               className="h-10 px-4 bg-[#0C0A09] text-white rounded-lg text-sm font-medium hover:bg-[#1C1917] disabled:opacity-50 flex items-center gap-2"
             >
               {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : "Create Agent"}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rename Agent Dialog */}
+      <Dialog open={renameOpen} onOpenChange={(open) => { setRenameOpen(open); if (!open) setRenameAgent(null); }}>
+        <DialogContent className="sm:max-w-md" data-testid="rename-agent-dialog">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-xl">Rename Agent</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <label className="block text-sm font-medium text-[#0C0A09] mb-1.5">New Name</label>
+            <input
+              data-testid="rename-agent-input"
+              value={renameName}
+              onChange={e => setRenameName(e.target.value)}
+              className="w-full border border-[#E7E5E4] rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-[#1C1917] focus:border-transparent outline-none"
+              placeholder="Enter new name"
+              onKeyDown={e => e.key === "Enter" && handleRenameSubmit()}
+            />
+          </div>
+          <DialogFooter className="gap-2">
+            <button onClick={() => setRenameOpen(false)} className="h-10 px-4 border border-[#E7E5E4] rounded-lg text-sm text-[#0C0A09] hover:bg-[#FAFAFA]">Cancel</button>
+            <button
+              data-testid="confirm-rename-agent"
+              onClick={handleRenameSubmit}
+              disabled={renaming || !renameName.trim()}
+              className="h-10 px-4 bg-[#0C0A09] text-white rounded-lg text-sm font-medium hover:bg-[#1C1917] disabled:opacity-50 flex items-center gap-2"
+            >
+              {renaming ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save"}
             </button>
           </DialogFooter>
         </DialogContent>

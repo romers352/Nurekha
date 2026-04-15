@@ -101,3 +101,226 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: "Phase 1 improvements: Remove business type from signup, move to agent creation, fix TopBar nav, fix agent management (rename/deactivate/instant update), remove static trends, add charts, add notifications"
+
+backend:
+  - task: "Auth register without required business_types"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Made business_types optional in RegisterInput"
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Auth register works without business_types field, defaults to [] as expected. Test user registered successfully."
+
+  - task: "Agent creation with business_type"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Added business_type field to CreateAgentInput and agent doc"
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Agent creation with business_type works correctly. Created 'Hotel Bot' with business_type 'Hotel' successfully."
+
+  - task: "Agent rename via PATCH"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "UpdateAgentInput already supports name/status updates via PATCH /agents/{id}"
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Agent rename via PATCH /agents/{id} works correctly. Successfully renamed agent to 'Renamed Bot'."
+
+  - task: "Notifications CRUD endpoints"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Added GET /notifications, GET /notifications/unread-count, PATCH /notifications/{id}/read, POST /notifications/mark-all-read"
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: All notification endpoints working correctly. GET /notifications returns list, unread-count works, mark-as-read and mark-all-read work properly. Notification created from agent creation."
+
+  - task: "Dashboard stats with chart data"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Dashboard stats now includes agent_message_distribution and daily_usage for charts"
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Dashboard stats endpoint returns correct chart data. agent_message_distribution (1 item) and daily_usage (7 days) arrays present."
+
+  - task: "Agent stats with chart data"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Agent stats now includes message_distribution and daily_activity for charts"
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Agent stats endpoint returns correct chart data. message_distribution (3 items) and daily_activity (7 days) arrays present."
+
+  - task: "Business types endpoint"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "GET /api/business-types returns list of business types"
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Business types endpoint returns 9 business types including E-commerce, Hotel, Salon/Spa, etc."
+
+frontend:
+  - task: "Signup page - business type removed"
+    implemented: true
+    working: true
+    file: "frontend/src/pages/SignupPage.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Business type selection removed from signup form"
+
+  - task: "Agent creation with business type"
+    implemented: true
+    working: true
+    file: "frontend/src/pages/AgentsPage.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Business type dropdown added to create agent dialog, agent appears immediately"
+
+  - task: "Agent rename functionality"
+    implemented: true
+    working: true
+    file: "frontend/src/pages/AgentsPage.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Rename dialog opens from 3-dot menu, calls PATCH API"
+
+  - task: "Agent deactivate toggle"
+    implemented: true
+    working: true
+    file: "frontend/src/pages/AgentsPage.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Toggle between active/inactive from 3-dot menu"
+
+  - task: "TopBar navigation fixes"
+    implemented: true
+    working: true
+    file: "frontend/src/components/dashboard/TopBar.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "View Profile navigates to /dashboard/settings, Billing to /dashboard/billing"
+
+  - task: "Notifications dropdown with red dot"
+    implemented: true
+    working: true
+    file: "frontend/src/components/dashboard/TopBar.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Bell icon opens dropdown, shows real notifications, red dot badge with unread count"
+
+  - task: "Dashboard overview charts"
+    implemented: true
+    working: true
+    file: "frontend/src/pages/DashboardOverview.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Added bar chart (daily usage) and pie chart (agent distribution) using recharts"
+
+  - task: "Agent overview charts and total messages"
+    implemented: true
+    working: true
+    file: "frontend/src/pages/agent/AgentOverview.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Added charts and replaced conversation box with Total Messages Used card"
+
+metadata:
+  created_by: "main_agent"
+  version: "1.0"
+  test_sequence: 2
+  run_ui: false
+
+test_plan:
+  current_focus: []
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: "Phase 1 implementation complete. All backend APIs are implemented. Please test: 1) Auth register with optional business_types, 2) Agent creation with business_type field, 3) PATCH /agents/{id} for rename/status change, 4) Notifications endpoints, 5) Dashboard stats with chart data. Admin credentials: admin@nurekha.com / Admin@123"
+  - agent: "testing"
+    message: "✅ PHASE 1 BACKEND TESTING COMPLETE: All 13 tests passed (100% success rate). Tested auth register without business_types (defaults to []), agent creation with business_type field, agent rename/deactivate via PATCH, all notification endpoints, dashboard stats with chart data, agent stats with chart data, and business types endpoint. All APIs working correctly with proper data structures and responses."

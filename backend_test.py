@@ -10,6 +10,7 @@ class NurekhaAPITester:
         self.tests_run = 0
         self.tests_passed = 0
         self.test_results = []
+        self.created_agent_id = None
 
     def log_test(self, name, success, details=""):
         """Log test result"""
@@ -156,31 +157,276 @@ class NurekhaAPITester:
             self.log_test("Delete Agent", False, str(e))
             return False
 
-    def test_register_user(self):
-        """Test user registration with Nepal mobile validation"""
+    def test_auth_register_without_business_types(self):
+        """Test auth register WITHOUT business_types (should default to [])"""
         try:
             timestamp = datetime.now().strftime('%H%M%S')
             data = {
-                "full_name": f"Test User {timestamp}",
-                "email": f"test{timestamp}@example.com",
-                "mobile": "9812345678",  # Valid Nepal mobile
-                "business_name": f"Test Business {timestamp}",
-                "business_types": ["E-commerce"],
-                "password": "TestPass123!"
+                "full_name": "Test User",
+                "email": f"testuser123{timestamp}@test.com",
+                "mobile": "9812345678",
+                "business_name": "Test Biz",
+                "password": "TestPass1!"
+                # Note: business_types is intentionally omitted
             }
             response = self.session.post(f"{self.base_url}/api/auth/register", json=data)
             success = response.status_code == 200
             
             if success:
                 user_data = response.json()
-                details = f"Registered user: {user_data.get('email', 'Unknown')}"
+                # Verify business_types defaults to []
+                business_types = user_data.get('business_types', None)
+                if business_types == []:
+                    details = f"Registered user: {user_data.get('email', 'Unknown')}, business_types defaulted to []"
+                else:
+                    success = False
+                    details = f"FAILED: business_types should default to [], got: {business_types}"
             else:
                 details = f"Status: {response.status_code}, Response: {response.text[:200]}"
             
-            self.log_test("User Registration", success, details)
+            self.log_test("Auth Register Without business_types", success, details)
             return success
         except Exception as e:
-            self.log_test("User Registration", False, str(e))
+            self.log_test("Auth Register Without business_types", False, str(e))
+            return False
+
+    def test_agent_creation_with_business_type(self):
+        """Test agent creation with business_type field"""
+        try:
+            data = {
+                "name": "Hotel Bot",
+                "business_type": "Hotel"
+            }
+            response = self.session.post(f"{self.base_url}/api/agents", json=data)
+            success = response.status_code in [200, 201]  # Accept both 200 and 201
+            
+            if success:
+                agent = response.json()
+                # Verify business_type field is included in response
+                business_type = agent.get('business_type')
+                if business_type == "Hotel":
+                    details = f"Created agent: {agent.get('name', 'Unknown')} with business_type: {business_type}"
+                    self.created_agent_id = agent.get('agent_id')
+                else:
+                    success = False
+                    details = f"FAILED: business_type should be 'Hotel', got: {business_type}"
+            else:
+                details = f"Status: {response.status_code}, Response: {response.text[:200]}"
+            
+            self.log_test("Agent Creation with business_type", success, details)
+            return success, self.created_agent_id if success else None
+        except Exception as e:
+            self.log_test("Agent Creation with business_type", False, str(e))
+            return False, None
+
+    def test_agent_rename(self, agent_id):
+        """Test agent rename via PATCH"""
+        if not agent_id:
+            self.log_test("Agent Rename", False, "No agent ID provided")
+            return False
+            
+        try:
+            data = {"name": "Renamed Bot"}
+            response = self.session.patch(f"{self.base_url}/api/agents/{agent_id}", json=data)
+            success = response.status_code == 200
+            
+            if success:
+                agent = response.json()
+                new_name = agent.get('name')
+                if new_name == "Renamed Bot":
+                    details = f"Successfully renamed agent to: {new_name}"
+                else:
+                    success = False
+                    details = f"FAILED: name should be 'Renamed Bot', got: {new_name}"
+            else:
+                details = f"Status: {response.status_code}, Response: {response.text[:200]}"
+            
+            self.log_test("Agent Rename", success, details)
+            return success
+        except Exception as e:
+            self.log_test("Agent Rename", False, str(e))
+            return False
+
+    def test_agent_deactivate(self, agent_id):
+        """Test agent deactivate via PATCH"""
+        if not agent_id:
+            self.log_test("Agent Deactivate", False, "No agent ID provided")
+            return False
+            
+        try:
+            data = {"status": "inactive"}
+            response = self.session.patch(f"{self.base_url}/api/agents/{agent_id}", json=data)
+            success = response.status_code == 200
+            
+            if success:
+                agent = response.json()
+                status = agent.get('status')
+                if status == "inactive":
+                    details = f"Successfully deactivated agent, status: {status}"
+                else:
+                    success = False
+                    details = f"FAILED: status should be 'inactive', got: {status}"
+            else:
+                details = f"Status: {response.status_code}, Response: {response.text[:200]}"
+            
+            self.log_test("Agent Deactivate", success, details)
+            return success
+        except Exception as e:
+            self.log_test("Agent Deactivate", False, str(e))
+            return False
+
+    def test_notifications_endpoints(self):
+        """Test all notification endpoints"""
+        try:
+            # Test GET /api/notifications
+            response = self.session.get(f"{self.base_url}/api/notifications")
+            list_success = response.status_code == 200
+            
+            if list_success:
+                notifications = response.json()
+                has_notifications = len(notifications) >= 1  # Should have at least 1 from agent creation
+                details = f"Found {len(notifications)} notifications"
+                if not has_notifications:
+                    list_success = False
+                    details += " (Expected at least 1 notification from agent creation)"
+            else:
+                details = f"GET notifications failed - Status: {response.status_code}, Response: {response.text[:200]}"
+            
+            self.log_test("GET /api/notifications", list_success, details)
+            
+            # Test GET /api/notifications/unread-count
+            response = self.session.get(f"{self.base_url}/api/notifications/unread-count")
+            count_success = response.status_code == 200
+            
+            if count_success:
+                count_data = response.json()
+                unread_count = count_data.get('unread_count', 0)
+                details = f"Unread count: {unread_count}"
+            else:
+                details = f"Status: {response.status_code}, Response: {response.text[:200]}"
+            
+            self.log_test("GET /api/notifications/unread-count", count_success, details)
+            
+            # Test PATCH /api/notifications/{id}/read (mark one as read)
+            mark_read_success = False
+            if list_success and notifications:
+                notification_id = notifications[0].get('notification_id')
+                if notification_id:
+                    response = self.session.patch(f"{self.base_url}/api/notifications/{notification_id}/read")
+                    mark_read_success = response.status_code == 200
+                    
+                    if mark_read_success:
+                        details = f"Successfully marked notification {notification_id[:12]}... as read"
+                    else:
+                        details = f"Status: {response.status_code}, Response: {response.text[:200]}"
+                else:
+                    details = "No notification_id found in first notification"
+            else:
+                details = "No notifications available to mark as read"
+            
+            self.log_test("PATCH /api/notifications/{id}/read", mark_read_success, details)
+            
+            # Test POST /api/notifications/mark-all-read
+            response = self.session.post(f"{self.base_url}/api/notifications/mark-all-read")
+            mark_all_success = response.status_code == 200
+            
+            if mark_all_success:
+                result = response.json()
+                marked_count = result.get('marked_count', 0)
+                details = f"Marked {marked_count} notifications as read"
+            else:
+                details = f"Status: {response.status_code}, Response: {response.text[:200]}"
+            
+            self.log_test("POST /api/notifications/mark-all-read", mark_all_success, details)
+            
+            return list_success and count_success and mark_read_success and mark_all_success
+            
+        except Exception as e:
+            self.log_test("Notifications Endpoints", False, str(e))
+            return False
+
+    def test_dashboard_stats_with_charts(self):
+        """Test dashboard stats endpoint with chart data"""
+        try:
+            response = self.session.get(f"{self.base_url}/api/dashboard/stats")
+            success = response.status_code == 200
+            
+            if success:
+                stats = response.json()
+                # Verify required chart data fields
+                agent_distribution = stats.get('agent_message_distribution', [])
+                daily_usage = stats.get('daily_usage', [])
+                
+                has_agent_distribution = isinstance(agent_distribution, list)
+                has_daily_usage = isinstance(daily_usage, list)
+                
+                if has_agent_distribution and has_daily_usage:
+                    details = f"Dashboard stats with charts - agent_distribution: {len(agent_distribution)} items, daily_usage: {len(daily_usage)} items"
+                else:
+                    success = False
+                    details = f"FAILED: Missing chart data - agent_distribution: {type(agent_distribution)}, daily_usage: {type(daily_usage)}"
+            else:
+                details = f"Status: {response.status_code}, Response: {response.text[:200]}"
+            
+            self.log_test("Dashboard Stats with Charts", success, details)
+            return success
+        except Exception as e:
+            self.log_test("Dashboard Stats with Charts", False, str(e))
+            return False
+
+    def test_agent_stats_with_charts(self, agent_id):
+        """Test agent stats endpoint with chart data"""
+        if not agent_id:
+            self.log_test("Agent Stats with Charts", False, "No agent ID provided")
+            return False
+            
+        try:
+            response = self.session.get(f"{self.base_url}/api/agents/{agent_id}/stats")
+            success = response.status_code == 200
+            
+            if success:
+                stats = response.json()
+                # Verify required chart data fields
+                message_distribution = stats.get('message_distribution', [])
+                daily_activity = stats.get('daily_activity', [])
+                
+                has_message_distribution = isinstance(message_distribution, list)
+                has_daily_activity = isinstance(daily_activity, list)
+                
+                if has_message_distribution and has_daily_activity:
+                    details = f"Agent stats with charts - message_distribution: {len(message_distribution)} items, daily_activity: {len(daily_activity)} items"
+                else:
+                    success = False
+                    details = f"FAILED: Missing chart data - message_distribution: {type(message_distribution)}, daily_activity: {type(daily_activity)}"
+            else:
+                details = f"Status: {response.status_code}, Response: {response.text[:200]}"
+            
+            self.log_test("Agent Stats with Charts", success, details)
+            return success
+        except Exception as e:
+            self.log_test("Agent Stats with Charts", False, str(e))
+            return False
+
+    def test_business_types_endpoint(self):
+        """Test business types endpoint"""
+        try:
+            response = self.session.get(f"{self.base_url}/api/business-types")
+            success = response.status_code == 200
+            
+            if success:
+                business_types = response.json()
+                if isinstance(business_types, list) and len(business_types) > 0:
+                    details = f"Found {len(business_types)} business types: {business_types[:3]}..."
+                else:
+                    success = False
+                    details = f"FAILED: Expected non-empty list, got: {type(business_types)} with {len(business_types) if isinstance(business_types, list) else 'N/A'} items"
+            else:
+                details = f"Status: {response.status_code}, Response: {response.text[:200]}"
+            
+            self.log_test("Business Types Endpoint", success, details)
+            return success
+        except Exception as e:
+            self.log_test("Business Types Endpoint", False, str(e))
             return False
 
     def test_forgot_password(self):
@@ -766,9 +1012,9 @@ class NurekhaAPITester:
             self.log_test("WebSocket Test", False, str(e))
             return False
 
-    def run_all_tests(self):
-        """Run all backend tests"""
-        print("🚀 Starting Nurekha Backend API Tests")
+    def run_phase1_tests(self):
+        """Run Phase 1 specific backend tests"""
+        print("🚀 Starting Nurekha Phase 1 Backend API Tests")
         print("=" * 50)
         
         # Test API health first
@@ -782,112 +1028,54 @@ class NurekhaAPITester:
             print("❌ Admin login failed. Cannot proceed with authenticated tests.")
             return False
         
-        # Test authenticated endpoints
-        self.test_auth_me()
-        self.test_dashboard_stats()
+        print("\n🔐 Testing Phase 1 Auth Features...")
+        # Test 1: Auth register without business_types
+        self.test_auth_register_without_business_types()
         
-        # Test agent management
-        agents_success, existing_agents = self.test_list_agents()
-        test_agent_id = None
-        if agents_success:
-            if existing_agents:
-                test_agent_id = existing_agents[0].get('agent_id')
-            else:
-                create_success, agent_id = self.test_create_agent()
-                if create_success and agent_id:
-                    test_agent_id = agent_id
+        print("\n🤖 Testing Phase 1 Agent Features...")
+        # Test 2: Agent creation with business_type
+        agent_success, agent_id = self.test_agent_creation_with_business_type()
         
-        # Test new training features
-        print("\n🎓 Testing Training Features...")
-        if test_agent_id:
-            self.test_bulk_faq_upload(test_agent_id)
-            self.test_bulk_product_upload(test_agent_id)
-            self.test_agent_test_chat(test_agent_id)
-            self.test_agent_settings(test_agent_id)
+        if agent_id:
+            # Test 3: Agent rename
+            self.test_agent_rename(agent_id)
+            
+            # Test 4: Agent deactivate
+            self.test_agent_deactivate(agent_id)
+            
+            # Test 7: Agent stats with charts
+            self.test_agent_stats_with_charts(agent_id)
         else:
-            print("⚠️  Skipping training tests - no agent available")
+            print("⚠️  Skipping agent-specific tests - no agent created")
         
-        # Test support features
-        print("\n🎫 Testing Support Features...")
-        self.test_support_tickets()
+        print("\n🔔 Testing Phase 1 Notification Features...")
+        # Test 5: Notifications endpoints
+        self.test_notifications_endpoints()
         
-        # Test profile management
-        print("\n👤 Testing Profile Features...")
-        self.test_profile_update()
-        self.test_change_password()
+        print("\n📊 Testing Phase 1 Dashboard Features...")
+        # Test 6: Dashboard stats with charts
+        self.test_dashboard_stats_with_charts()
         
-        # Test billing endpoints
-        print("\n📊 Testing Billing Features...")
-        billing_plans_success, plans = self.test_billing_plans()
-        billing_credits_success, credits = self.test_billing_credits()
-        
-        if billing_credits_success:
-            self.test_buy_credits()
-        
-        if billing_plans_success:
-            # Test payment initiation
-            khalti_success, khalti_data = self.test_billing_initiate_khalti()
-            esewa_success, esewa_data = self.test_billing_initiate_esewa()
-            
-            # Test payment verification (with khalti data if available)
-            if khalti_success and khalti_data:
-                self.test_billing_verify(khalti_data)
-        
-        # Test payment history
-        self.test_billing_history()
-        
-        # Test orders endpoints
-        print("\n📦 Testing Orders Features...")
-        if test_agent_id:
-            # Test order creation
-            order_success, order_id = self.test_create_order(test_agent_id)
-            
-            # Test order listing
-            self.test_list_orders(test_agent_id)
-            
-            # Test order status update and refund
-            if order_success and order_id:
-                self.test_update_order_status(order_id)
-                # First update to confirmed (paid) status, then test refund
-                confirm_data = {"status": "confirmed"}
-                self.session.patch(f"{self.base_url}/api/orders/{order_id}/status", json=confirm_data)
-                self.test_order_refund(order_id)
-        else:
-            print("⚠️  Skipping order tests - no agent available")
-        
-        # Test WebSocket functionality
-        print("\n🔌 Testing WebSocket Features...")
-        self.test_websocket_connection()
-        
-        # Test other auth endpoints
-        self.test_forgot_password()
-        
-        # Test user registration (this will create a new session)
-        self.test_register_user()
-        
-        # Clean up test agent if created
-        if test_agent_id and not existing_agents:
-            self.test_delete_agent(test_agent_id)
-        
-        # Test logout (should clear cookies)
-        self.test_logout()
+        print("\n🏢 Testing Phase 1 Business Types...")
+        # Test 8: Business types endpoint
+        self.test_business_types_endpoint()
         
         # Print summary
         print("\n" + "=" * 50)
-        print(f"📊 Test Summary: {self.tests_passed}/{self.tests_run} tests passed")
+        print(f"📊 Phase 1 Test Summary: {self.tests_passed}/{self.tests_run} tests passed")
         success_rate = (self.tests_passed / self.tests_run) * 100 if self.tests_run > 0 else 0
         print(f"📈 Success Rate: {success_rate:.1f}%")
         
         if self.tests_passed == self.tests_run:
-            print("🎉 All tests passed!")
+            print("🎉 All Phase 1 tests passed!")
             return True
         else:
-            print("⚠️  Some tests failed. Check the details above.")
+            print("⚠️  Some Phase 1 tests failed. Check the details above.")
             return False
 
 def main():
     tester = NurekhaAPITester()
-    success = tester.run_all_tests()
+    success = tester.run_phase1_tests()
     
     # Save detailed results
     with open('/app/backend_test_results.json', 'w') as f:
