@@ -1,0 +1,4 @@
+product_name,sku,description,category,brand,price,discount_price,currency,stock_quantity,availability,weight,tags
+Wireless Mouse,SKU-MOUSE-001,Ergonomic wireless mouse with long battery life,Electronics,TechBrand,1200,999,NPR,50,in_stock,150g,wireless;mouse;tech
+Coffee Mug,SKU-MUG-002,Ceramic coffee mug 350ml,Home & Kitchen,HomeWare,300,,NPR,100,in_stock,200g,mug;kitchen
+Laptop Backpack,SKU-BAG-003,Waterproof laptop backpack 15.6 inch,Accessories,TravelGear,2500,2200,NPR,30,in_stock,800g,backpack;laptop;travel

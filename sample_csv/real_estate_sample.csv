@@ -1,0 +1,5 @@
+title,type,price,currency,location,bedrooms,bathrooms,area_sqft,status
+Luxury Apartment in Kathmandu,sale,12000000,NPR,Baneshwor,3,2,1500,available
+Commercial Space,rent,80000,NPR,Thamel,0,2,2000,available
+Villa with Garden,sale,35000000,NPR,Budhanilkantha,5,4,3500,available
+Studio Apartment,rent,15000,NPR,Lazimpat,1,1,450,available

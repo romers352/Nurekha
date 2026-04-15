@@ -1,0 +1,5 @@
+plan_name,speed,price,currency,data_limit,installation_fee,coverage_area,availability
+Basic Plan,25 Mbps,800,NPR,Unlimited,1000,Kathmandu Valley,available
+Premium Plan,100 Mbps,1500,NPR,Unlimited,1500,Kathmandu Valley,available
+Business Plan,200 Mbps,3500,NPR,Unlimited,2000,Nationwide,available
+Student Plan,50 Mbps,900,NPR,500 GB,500,Kathmandu Valley,available

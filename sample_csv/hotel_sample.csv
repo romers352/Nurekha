@@ -1,0 +1,5 @@
+room_type,price_per_night,currency,max_occupancy,available_rooms,amenities,availability_status
+Deluxe Suite,8000,NPR,3,5,WiFi; TV; Mini Bar; Balcony,available
+Standard Room,3500,NPR,2,10,WiFi; TV,available
+Presidential Suite,25000,NPR,4,1,WiFi; TV; Mini Bar; Balcony; Jacuzzi; Kitchen,available
+Economy Room,2000,NPR,2,15,WiFi,available
