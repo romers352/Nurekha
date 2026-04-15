@@ -1,82 +1,118 @@
 {
   "summary": {
-    "total_tests": 12,
-    "passed_tests": 12,
+    "total_tests": 18,
+    "passed_tests": 18,
     "success_rate": 100.0,
-    "timestamp": "2026-04-15T04:44:48.364935"
+    "timestamp": "2026-04-15T07:03:35.249619"
   },
   "test_results": [
     {
       "test": "API Health Check",
       "success": true,
       "details": "Status: 200, Response: {\"message\":\"Nurekha API v1\"}",
-      "timestamp": "2026-04-15T04:44:47.404879"
+      "timestamp": "2026-04-15T07:03:34.211830"
     },
     {
       "test": "Admin Login",
       "success": true,
       "details": "Logged in as: admin@nurekha.com, Role: admin",
-      "timestamp": "2026-04-15T04:44:47.682321"
+      "timestamp": "2026-04-15T07:03:34.482148"
     },
     {
-      "test": "Refund Flow - Find E-commerce Agent",
+      "test": "Business Types - GET /api/business-types",
       "success": true,
-      "details": "Found E-commerce agent: 7b31a863-fd8...",
-      "timestamp": "2026-04-15T04:44:47.734626"
+      "details": "Found 13 business types",
+      "timestamp": "2026-04-15T07:03:34.523052"
     },
     {
-      "test": "Refund Flow - Create Order",
+      "test": "Business Types - ISP Schema",
       "success": true,
-      "details": "Created order: ORD-F2922E28, Initial payment_status: unpaid",
-      "timestamp": "2026-04-15T04:44:47.786082"
+      "details": "Schema has 8 fields",
+      "timestamp": "2026-04-15T07:03:34.567551"
     },
     {
-      "test": "Refund Flow - Update Order Status",
+      "test": "Dynamic Business Data - Find ISP Agent",
       "success": true,
-      "details": "Order status: confirmed, Payment status: paid",
-      "timestamp": "2026-04-15T04:44:47.837917"
+      "details": "Found ISP agent: 3ebe06f3-0937-4352-bb60-98d88bb55f7f",
+      "timestamp": "2026-04-15T07:03:34.612868"
     },
     {
-      "test": "Refund Flow - Payment Status Verification",
+      "test": "Business Data CRUD - CREATE",
       "success": true,
-      "details": "Payment status correctly set to 'paid' after confirming order",
-      "timestamp": "2026-04-15T04:44:47.837926"
+      "details": "Created item: 414f7813-46b5-4699-ad54-2e060d71efb8",
+      "timestamp": "2026-04-15T07:03:34.668225"
     },
     {
-      "test": "Refund Flow - Process Refund",
+      "test": "Business Data CRUD - READ",
       "success": true,
-      "details": "Refund processed: REF-894D5B6C, Amount: 5000, Payment status: refunded, Order status: cancelled",
-      "timestamp": "2026-04-15T04:44:47.901499"
+      "details": "Found 4 items including created item",
+      "timestamp": "2026-04-15T07:03:34.714246"
     },
     {
-      "test": "Refund Flow - List Refunds",
+      "test": "Business Data CRUD - UPDATE",
       "success": true,
-      "details": "Found 2 refunds including our test refund",
-      "timestamp": "2026-04-15T04:44:47.950784"
+      "details": "Updated price to 1299",
+      "timestamp": "2026-04-15T07:03:34.764961"
     },
     {
-      "test": "Refund Flow - Check Notifications",
+      "test": "Business Data - Bulk Upload",
       "success": true,
-      "details": "Found refund notification: 'Refund Processed' - Order ORD-F2922E28 refunded NPR 5000. Reason: Customer request",
-      "timestamp": "2026-04-15T04:44:48.002822"
+      "details": "Imported 2 items",
+      "timestamp": "2026-04-15T07:03:34.811121"
     },
     {
-      "test": "Refund Edge Cases - Non-existent Order",
+      "test": "Business Data - CSV Template",
       "success": true,
-      "details": "Correctly rejected refund for non-existent order",
-      "timestamp": "2026-04-15T04:44:48.104700"
+      "details": "CSV template contains expected headers",
+      "timestamp": "2026-04-15T07:03:34.859399"
     },
     {
-      "test": "Refund Edge Cases - Unpaid Order",
+      "test": "Leads - Create Real Estate Agent",
       "success": true,
-      "details": "Correctly rejected refund for unpaid order",
-      "timestamp": "2026-04-15T04:44:48.203609"
+      "details": "Created agent: 32b4e227-f000-4289-9e5b-4f93ad62b6f8",
+      "timestamp": "2026-04-15T07:03:34.907645"
     },
     {
-      "test": "Refund Edge Cases - Partial Refund",
+      "test": "Leads - CREATE",
       "success": true,
-      "details": "Partial refund processed correctly: NPR 5000",
-      "timestamp": "2026-04-15T04:44:48.364744"
+      "details": "Created lead: LEAD-11EC0602",
+      "timestamp": "2026-04-15T07:03:34.962624"
+    },
+    {
+      "test": "Leads - READ",
+      "success": true,
+      "details": "Found 1 leads including created lead",
+      "timestamp": "2026-04-15T07:03:35.006960"
+    },
+    {
+      "test": "Leads - UPDATE Status",
+      "success": true,
+      "details": "Updated status to contacted",
+      "timestamp": "2026-04-15T07:03:35.052778"
+    },
+    {
+      "test": "Customer Tickets - CREATE",
+      "success": true,
+      "details": "Created ticket: CTKT-460B6039",
+      "timestamp": "2026-04-15T07:03:35.108758"
+    },
+    {
+      "test": "Customer Tickets - READ",
+      "success": true,
+      "details": "Found 1 tickets including created ticket",
+      "timestamp": "2026-04-15T07:03:35.156721"
+    },
+    {
+      "test": "Customer Tickets - UPDATE Status",
+      "success": true,
+      "details": "Updated status to in_progress",
+      "timestamp": "2026-04-15T07:03:35.204052"
+    },
+    {
+      "test": "Business Data CRUD - DELETE",
+      "success": true,
+      "details": "Deleted item: 414f7813-46b5-4699-ad54-2e060d71efb8",
+      "timestamp": "2026-04-15T07:03:35.249355"
     }
   ]
 }

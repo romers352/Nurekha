@@ -282,6 +282,18 @@ backend:
         agent: "testing"
         comment: "✅ TESTED: Complete refund flow working correctly. Successfully tested: 1) GET /api/agents to find E-commerce agent, 2) POST /api/orders to create order, 3) PATCH /api/orders/{id}/status to confirm order (automatically sets payment_status to 'paid'), 4) POST /api/orders/{id}/refund to process refund, 5) GET /api/refunds?agent_id={id} to list refunds, 6) GET /api/notifications to verify refund notification created. Edge cases tested: non-existent order (404), unpaid order rejection (400), partial refunds. All endpoints functioning properly with correct status codes and data validation."
 
+  - task: "Dynamic business data system"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Complete dynamic business data system working correctly. All 18 tests passed (100% success rate). Successfully tested: 1) GET /api/business-types returns 13 business types ✓, 2) GET /api/business-types/isp/schema returns correct schema with all expected fields ✓, 3) Generic CRUD operations for ISP agent business data (CREATE/READ/UPDATE/DELETE) ✓, 4) POST /api/agents/{agent_id}/business-data/bulk uploads 2 items correctly ✓, 5) GET /api/agents/{agent_id}/business-data/csv-template returns CSV with correct headers ✓, 6) Leads management for real estate agent (CREATE/READ/UPDATE status) ✓, 7) Customer tickets for ISP agent (CREATE/READ/UPDATE status) ✓. All endpoints functioning properly with correct data validation, business logic, and response formats."
+
 frontend:
   - task: "Signup page - business type removed"
     implemented: true
@@ -402,3 +414,5 @@ agent_communication:
     message: "✅ COMPREHENSIVE UI TESTING COMPLETE: 35/36 tests passed (97% success rate). All major flows working correctly: 1) Signup page - business type removed ✓, 2) Login flow - dashboard loads with real data ✓, 3) TopBar navigation - profile/billing/notifications all working ✓, 4) Billing custom purchase - validation and presets working ✓, 5) Agent creation with business type - instant update ✓, 6) Agent rename/deactivate - both working ✓, 7) Agent dashboard - dynamic sidebar (E-commerce shows Uploaded Data + Orders) ✓, 8) Support page - all fields and file attachment present ✓. Minor note: Pie charts show empty state when no message data exists (expected behavior)."
   - agent: "testing"
     message: "✅ REFUND ENDPOINTS TESTING COMPLETE: All 12 tests passed (100% success rate). Successfully tested complete refund flow: 1) GET /api/agents to find E-commerce agent ✓, 2) POST /api/orders to create order ✓, 3) PATCH /api/orders/{id}/status to confirm order (automatically sets payment_status to 'paid') ✓, 4) POST /api/orders/{id}/refund to process refund ✓, 5) GET /api/refunds?agent_id={id} to list refunds ✓, 6) GET /api/notifications to verify refund notification created ✓. Edge cases tested: non-existent order returns 404 ✓, unpaid order rejection returns 400 with correct error message ✓, partial refunds work correctly ✓. All refund endpoints functioning properly with correct status codes, data validation, and business logic."
+  - agent: "testing"
+    message: "✅ DYNAMIC BUSINESS DATA SYSTEM TESTING COMPLETE: All 18 tests passed (100% success rate). Successfully tested complete dynamic business data system: 1) GET /api/business-types returns 13 business types ✓, 2) GET /api/business-types/isp/schema returns correct ISP schema with all expected fields ✓, 3) Generic CRUD operations for ISP agent business data (CREATE/READ/UPDATE/DELETE) all working ✓, 4) POST /api/agents/{agent_id}/business-data/bulk uploads 2 items correctly ✓, 5) GET /api/agents/{agent_id}/business-data/csv-template returns CSV with correct headers ✓, 6) Leads management for real estate agent (CREATE/READ/UPDATE status) ✓, 7) Customer tickets for ISP agent (CREATE/READ/UPDATE status) ✓. All endpoints functioning properly with correct data validation, business logic, and response formats. System ready for production use."

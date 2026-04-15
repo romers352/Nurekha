@@ -27,6 +27,8 @@ import AgentSettingsPage from "@/pages/agent/AgentSettingsPage";
 import HotelRoomsPage from "@/pages/agent/HotelRoomsPage";
 import HotelBookingsPage from "@/pages/agent/HotelBookingsPage";
 import RefundPage from "@/pages/agent/RefundPage";
+import LeadsPage from "@/pages/agent/LeadsPage";
+import CustomerTicketsPage from "@/pages/agent/CustomerTicketsPage";
 
 function AppRouter() {
   const location = useLocation();
@@ -73,6 +75,8 @@ function AppRouter() {
         <Route path="refunds" element={<RefundPage />} />
         <Route path="rooms" element={<HotelRoomsPage />} />
         <Route path="bookings" element={<HotelBookingsPage />} />
+        <Route path="leads" element={<LeadsPage />} />
+        <Route path="customer-tickets" element={<CustomerTicketsPage />} />
         <Route path="settings" element={<AgentSettingsPage />} />
       </Route>
     </Routes>

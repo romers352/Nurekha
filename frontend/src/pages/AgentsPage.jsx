@@ -11,12 +11,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import axios from "axios";
 
+import { ALL_BUSINESS_TYPES, getBizLabel } from "@/config/businessTypes";
+
 const API = process.env.REACT_APP_BACKEND_URL;
 
-const BUSINESS_TYPES = [
-  "E-commerce", "Hotel", "Salon/Spa", "Restaurant",
-  "Healthcare", "Real Estate", "Travel", "Education", "Other",
-];
+const BUSINESS_TYPES = ALL_BUSINESS_TYPES;
 
 const containerVariants = { hidden: {}, visible: { transition: { staggerChildren: 0.06 } } };
 const itemVariants = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.4 } } };
@@ -90,7 +89,7 @@ function AgentCard({ agent, onDelete, onRename, onToggleStatus }) {
         </span>
         {agent.business_type && (
           <span className="inline-flex items-center text-xs rounded-full px-2.5 py-0.5 bg-[#F5F0EB] text-[#57534E]">
-            {agent.business_type}
+            {getBizLabel(agent.business_type)}
           </span>
         )}
       </div>
@@ -272,7 +271,7 @@ export default function AgentsPage() {
                   className="w-full border border-[#E7E5E4] rounded-lg px-3 py-2.5 text-sm text-left hover:bg-[#FAFAFA] flex items-center justify-between"
                 >
                   <span className={newBusinessType ? "text-[#0C0A09]" : "text-[#A8A29E]"}>
-                    {newBusinessType || "Select business type..."}
+                    {newBusinessType ? getBizLabel(newBusinessType) : "Select business type..."}
                   </span>
                   <ChevronDown className={`w-4 h-4 text-[#A8A29E] transition-transform ${bizTypeOpen ? "rotate-180" : ""}`} />
                 </button>
@@ -289,7 +288,7 @@ export default function AgentsPage() {
                         <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${newBusinessType === t ? "bg-[#0C0A09] border-[#0C0A09]" : "border-[#D6D3D1]"}`}>
                           {newBusinessType === t && <Check className="w-3 h-3 text-white" />}
                         </div>
-                        {t}
+                        {getBizLabel(t)}
                       </button>
                     ))}
                   </div>

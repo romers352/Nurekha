@@ -13,6 +13,9 @@ import uuid
 import secrets
 import bcrypt
 import jwt
+import csv
+import io
+from schemas import BUSINESS_TYPE_SCHEMAS, ALL_BUSINESS_TYPES, get_schema, get_collection_name, get_csv_headers
 import httpx
 import json
 import hmac
@@ -383,7 +386,7 @@ async def exchange_session(input_data: SessionInput, response: Response):
 
 
 # ─── Agent Endpoints ───
-BUSINESS_TYPES = ["E-commerce", "Hotel", "Salon/Spa", "Restaurant", "Healthcare", "Real Estate", "Travel", "Education", "Other"]
+BUSINESS_TYPES = ALL_BUSINESS_TYPES
 
 class CreateAgentInput(BaseModel):
     name: str
@@ -1731,7 +1734,266 @@ async def update_booking_status(booking_id: str, request: Request):
 # ─── Business Types ───
 @api_router.get("/business-types")
 async def get_business_types():
-    return BUSINESS_TYPES
+    return ALL_BUSINESS_TYPES
+
+@api_router.get("/business-types/{biz_type}/schema")
+async def get_business_type_schema(biz_type: str):
+    schema = get_schema(biz_type)
+    if not schema:
+        raise HTTPException(status_code=404, detail="Unknown business type")
+    return schema
+
+
+# ─── Generic Business Data CRUD ───
+
+@api_router.get("/agents/{agent_id}/business-data")
+async def list_business_data(agent_id: str, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id}, {"_id": 0})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    biz_type = agent.get("business_type", "")
+    col_name = get_collection_name(biz_type)
+    if not col_name:
+        return []
+    items = await db[col_name].find({"agent_id": agent_id}, {"_id": 0}).to_list(2000)
+    return items
+
+
+@api_router.post("/agents/{agent_id}/business-data")
+async def add_business_data(agent_id: str, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id}, {"_id": 0})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    biz_type = agent.get("business_type", "")
+    col_name = get_collection_name(biz_type)
+    if not col_name:
+        raise HTTPException(status_code=400, detail="Business type not configured")
+    body = await request.json()
+    item_id = str(uuid.uuid4())
+    item = {**body, "item_id": item_id, "agent_id": agent_id, "created_at": datetime.now(timezone.utc).isoformat()}
+    await db[col_name].insert_one(item)
+    item.pop("_id", None)
+    return item
+
+
+@api_router.put("/agents/{agent_id}/business-data/{item_id}")
+async def update_business_data(agent_id: str, item_id: str, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id}, {"_id": 0})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    biz_type = agent.get("business_type", "")
+    col_name = get_collection_name(biz_type)
+    if not col_name:
+        raise HTTPException(status_code=400, detail="Business type not configured")
+    body = await request.json()
+    body.pop("item_id", None)
+    body.pop("agent_id", None)
+    body.pop("_id", None)
+    result = await db[col_name].update_one({"item_id": item_id, "agent_id": agent_id}, {"$set": body})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Item not found")
+    updated = await db[col_name].find_one({"item_id": item_id}, {"_id": 0})
+    return updated
+
+
+@api_router.delete("/agents/{agent_id}/business-data/{item_id}")
+async def delete_business_data(agent_id: str, item_id: str, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id}, {"_id": 0})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    biz_type = agent.get("business_type", "")
+    col_name = get_collection_name(biz_type)
+    if not col_name:
+        raise HTTPException(status_code=400, detail="Business type not configured")
+    result = await db[col_name].delete_one({"item_id": item_id, "agent_id": agent_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return {"message": "Deleted"}
+
+
+@api_router.post("/agents/{agent_id}/business-data/bulk")
+async def bulk_upload_business_data(agent_id: str, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id}, {"_id": 0})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    biz_type = agent.get("business_type", "")
+    col_name = get_collection_name(biz_type)
+    if not col_name:
+        raise HTTPException(status_code=400, detail="Business type not configured")
+    body = await request.json()
+    items_data = body.get("items", [])
+    if not items_data:
+        raise HTTPException(status_code=400, detail="No items provided")
+    inserted = []
+    for item_data in items_data:
+        item_id = str(uuid.uuid4())
+        item = {**item_data, "item_id": item_id, "agent_id": agent_id, "created_at": datetime.now(timezone.utc).isoformat()}
+        await db[col_name].insert_one(item)
+        item.pop("_id", None)
+        inserted.append(item)
+    return {"message": f"Uploaded {len(inserted)} items", "count": len(inserted), "items": inserted}
+
+
+@api_router.post("/agents/{agent_id}/business-data/bulk-delete")
+async def bulk_delete_business_data(agent_id: str, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id}, {"_id": 0})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    biz_type = agent.get("business_type", "")
+    col_name = get_collection_name(biz_type)
+    if not col_name:
+        raise HTTPException(status_code=400, detail="Business type not configured")
+    body = await request.json()
+    item_ids = body.get("item_ids", [])
+    if not item_ids:
+        raise HTTPException(status_code=400, detail="No item IDs provided")
+    result = await db[col_name].delete_many({"item_id": {"$in": item_ids}, "agent_id": agent_id})
+    return {"message": f"Deleted {result.deleted_count} items", "count": result.deleted_count}
+
+
+@api_router.get("/agents/{agent_id}/business-data/csv-template")
+async def download_csv_template(agent_id: str, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id}, {"_id": 0})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    biz_type = agent.get("business_type", "")
+    headers = get_csv_headers(biz_type)
+    if not headers:
+        raise HTTPException(status_code=400, detail="No template for this business type")
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(headers)
+    # Add sample row
+    schema = get_schema(biz_type)
+    sample = []
+    for h in headers:
+        field = next((f for f in schema["fields"] if f["key"] == h), None)
+        if field:
+            if field["type"] == "number":
+                sample.append("0")
+            elif field.get("options"):
+                sample.append(field["options"][0])
+            elif field.get("default"):
+                sample.append(str(field["default"]))
+            else:
+                sample.append(f"sample_{h}")
+        else:
+            sample.append("")
+    writer.writerow(sample)
+    csv_content = output.getvalue()
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={biz_type}_template.csv"}
+    )
+
+
+# ─── Output: Leads ───
+
+@api_router.post("/agents/{agent_id}/leads")
+async def create_lead(agent_id: str, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id}, {"_id": 0})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    body = await request.json()
+    lead_id = f"LEAD-{uuid.uuid4().hex[:8].upper()}"
+    now = datetime.now(timezone.utc).isoformat()
+    lead = {
+        "lead_id": lead_id, "agent_id": agent_id, "client_id": user_id,
+        "customer_name": body.get("customer_name", ""),
+        "phone": body.get("phone", ""),
+        "email": body.get("email", ""),
+        "details": body.get("details", ""),
+        "source": body.get("source", "chat"),
+        "status": "new",
+        "created_at": now, "updated_at": now,
+    }
+    await db.leads.insert_one(lead)
+    lead.pop("_id", None)
+    return lead
+
+@api_router.get("/agents/{agent_id}/leads")
+async def list_leads(agent_id: str, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    leads = await db.leads.find({"agent_id": agent_id, "client_id": user_id}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    return leads
+
+@api_router.patch("/agents/{agent_id}/leads/{lead_id}/status")
+async def update_lead_status(agent_id: str, lead_id: str, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    body = await request.json()
+    new_status = body.get("status", "")
+    valid = ["new", "contacted", "qualified", "converted", "lost"]
+    if new_status not in valid:
+        raise HTTPException(status_code=400, detail=f"Status must be one of: {valid}")
+    await db.leads.update_one({"lead_id": lead_id, "agent_id": agent_id, "client_id": user_id}, {"$set": {"status": new_status, "updated_at": datetime.now(timezone.utc).isoformat()}})
+    updated = await db.leads.find_one({"lead_id": lead_id}, {"_id": 0})
+    return updated
+
+
+# ─── Output: Customer Tickets (ISP/Telecom) ───
+
+@api_router.post("/agents/{agent_id}/customer-tickets")
+async def create_customer_ticket(agent_id: str, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id}, {"_id": 0})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    body = await request.json()
+    ticket_id = f"CTKT-{uuid.uuid4().hex[:8].upper()}"
+    now = datetime.now(timezone.utc).isoformat()
+    ticket = {
+        "ticket_id": ticket_id, "agent_id": agent_id, "client_id": user_id,
+        "customer_name": body.get("customer_name", ""),
+        "phone": body.get("phone", ""),
+        "issue": body.get("issue", ""),
+        "category": body.get("category", "general"),
+        "priority": body.get("priority", "medium"),
+        "status": "open",
+        "created_at": now, "updated_at": now,
+    }
+    await db.customer_tickets.insert_one(ticket)
+    ticket.pop("_id", None)
+    return ticket
+
+@api_router.get("/agents/{agent_id}/customer-tickets")
+async def list_customer_tickets(agent_id: str, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    tickets = await db.customer_tickets.find({"agent_id": agent_id, "client_id": user_id}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    return tickets
+
+@api_router.patch("/agents/{agent_id}/customer-tickets/{ticket_id}/status")
+async def update_customer_ticket_status(agent_id: str, ticket_id: str, request: Request):
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    body = await request.json()
+    new_status = body.get("status", "")
+    valid = ["open", "in_progress", "resolved", "closed"]
+    if new_status not in valid:
+        raise HTTPException(status_code=400, detail=f"Status must be one of: {valid}")
+    await db.customer_tickets.update_one({"ticket_id": ticket_id, "agent_id": agent_id}, {"$set": {"status": new_status, "updated_at": datetime.now(timezone.utc).isoformat()}})
+    updated = await db.customer_tickets.find_one({"ticket_id": ticket_id}, {"_id": 0})
+    return updated
 
 
 # ─── Notifications ───

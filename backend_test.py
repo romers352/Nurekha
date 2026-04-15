@@ -1637,6 +1637,285 @@ class NurekhaAPITester:
             print("⚠️  Some Phase 2 tests failed. Check the details above.")
             return False
 
+    def test_dynamic_business_data_system(self):
+        """Test the new dynamic business data system"""
+        print("\n🔄 Starting Dynamic Business Data System Tests...")
+        
+        # Step 1: Test business types endpoint
+        print("Step 1: Testing business types endpoint...")
+        response = self.session.get(f"{self.base_url}/api/business-types")
+        if response.status_code != 200:
+            self.log_test("Business Types - GET /api/business-types", False, f"Status: {response.status_code}")
+            return False
+        
+        business_types = response.json()
+        if len(business_types) != 13:
+            self.log_test("Business Types - Count Check", False, f"Expected 13 types, got {len(business_types)}")
+            return False
+        
+        self.log_test("Business Types - GET /api/business-types", True, f"Found {len(business_types)} business types")
+        
+        # Step 2: Test ISP schema endpoint
+        print("Step 2: Testing ISP schema endpoint...")
+        response = self.session.get(f"{self.base_url}/api/business-types/isp/schema")
+        if response.status_code != 200:
+            self.log_test("Business Types - ISP Schema", False, f"Status: {response.status_code}")
+            return False
+        
+        isp_schema = response.json()
+        expected_fields = ["plan_name", "speed", "price", "currency", "data_limit", "installation_fee", "coverage_area", "availability"]
+        schema_fields = [field["key"] for field in isp_schema.get("fields", [])]
+        
+        if not all(field in schema_fields for field in expected_fields):
+            self.log_test("Business Types - ISP Schema Fields", False, f"Missing fields. Expected: {expected_fields}, Got: {schema_fields}")
+            return False
+        
+        self.log_test("Business Types - ISP Schema", True, f"Schema has {len(schema_fields)} fields")
+        
+        # Step 3: Find ISP agent
+        print("Step 3: Finding ISP agent...")
+        agents_response = self.session.get(f"{self.base_url}/api/agents")
+        if agents_response.status_code != 200:
+            self.log_test("Dynamic Business Data - Get Agents", False, f"Status: {agents_response.status_code}")
+            return False
+        
+        agents = agents_response.json()
+        isp_agent_id = None
+        
+        for agent in agents:
+            if agent.get('business_type') == 'isp':
+                isp_agent_id = agent.get('agent_id')
+                break
+        
+        if not isp_agent_id:
+            # Create ISP agent if not found
+            print("Creating ISP agent...")
+            agent_data = {"name": "Test ISP Agent", "business_type": "isp"}
+            create_response = self.session.post(f"{self.base_url}/api/agents", json=agent_data)
+            if create_response.status_code in [200, 201]:
+                isp_agent_id = create_response.json().get('agent_id')
+                self.log_test("Dynamic Business Data - Create ISP Agent", True, f"Created ISP agent: {isp_agent_id}")
+            else:
+                self.log_test("Dynamic Business Data - Create ISP Agent", False, f"Status: {create_response.status_code}")
+                return False
+        else:
+            self.log_test("Dynamic Business Data - Find ISP Agent", True, f"Found ISP agent: {isp_agent_id}")
+        
+        # Step 4: Test Generic CRUD operations
+        print("Step 4: Testing Generic CRUD operations...")
+        
+        # CREATE business data
+        business_data = {
+            "plan_name": "Basic 10Mbps",
+            "speed": "10 Mbps",
+            "price": 999,
+            "currency": "NPR",
+            "data_limit": "Unlimited",
+            "installation_fee": 500,
+            "coverage_area": "Kathmandu",
+            "availability": "available"
+        }
+        
+        create_response = self.session.post(f"{self.base_url}/api/agents/{isp_agent_id}/business-data", json=business_data)
+        if create_response.status_code != 200:
+            self.log_test("Business Data CRUD - CREATE", False, f"Status: {create_response.status_code}, Response: {create_response.text[:200]}")
+            return False
+        
+        created_item = create_response.json()
+        item_id = created_item.get('item_id')
+        self.log_test("Business Data CRUD - CREATE", True, f"Created item: {item_id}")
+        
+        # READ business data
+        read_response = self.session.get(f"{self.base_url}/api/agents/{isp_agent_id}/business-data")
+        if read_response.status_code != 200:
+            self.log_test("Business Data CRUD - READ", False, f"Status: {read_response.status_code}")
+            return False
+        
+        items = read_response.json()
+        found_item = any(item.get('item_id') == item_id for item in items)
+        if not found_item:
+            self.log_test("Business Data CRUD - READ", False, f"Created item not found in {len(items)} items")
+            return False
+        
+        self.log_test("Business Data CRUD - READ", True, f"Found {len(items)} items including created item")
+        
+        # UPDATE business data
+        update_data = {**business_data, "price": 1299}
+        update_response = self.session.put(f"{self.base_url}/api/agents/{isp_agent_id}/business-data/{item_id}", json=update_data)
+        if update_response.status_code != 200:
+            self.log_test("Business Data CRUD - UPDATE", False, f"Status: {update_response.status_code}")
+            return False
+        
+        updated_item = update_response.json()
+        if updated_item.get('price') != 1299:
+            self.log_test("Business Data CRUD - UPDATE", False, f"Price not updated correctly: {updated_item.get('price')}")
+            return False
+        
+        self.log_test("Business Data CRUD - UPDATE", True, f"Updated price to {updated_item.get('price')}")
+        
+        # Step 5: Test Bulk Upload
+        print("Step 5: Testing Bulk Upload...")
+        bulk_data = {
+            "items": [
+                {"plan_name": "Pro 50Mbps", "speed": "50 Mbps", "price": 2499},
+                {"plan_name": "Ultra 100Mbps", "speed": "100 Mbps", "price": 4999}
+            ]
+        }
+        
+        bulk_response = self.session.post(f"{self.base_url}/api/agents/{isp_agent_id}/business-data/bulk", json=bulk_data)
+        if bulk_response.status_code != 200:
+            self.log_test("Business Data - Bulk Upload", False, f"Status: {bulk_response.status_code}, Response: {bulk_response.text[:200]}")
+            return False
+        
+        bulk_result = bulk_response.json()
+        imported_count = bulk_result.get('count', 0)  # Changed from 'imported' to 'count'
+        if imported_count != 2:
+            self.log_test("Business Data - Bulk Upload", False, f"Expected 2 items imported, got {imported_count}")
+            return False
+        
+        self.log_test("Business Data - Bulk Upload", True, f"Imported {imported_count} items")
+        
+        # Step 6: Test CSV Template
+        print("Step 6: Testing CSV Template...")
+        csv_response = self.session.get(f"{self.base_url}/api/agents/{isp_agent_id}/business-data/csv-template")
+        if csv_response.status_code != 200:
+            self.log_test("Business Data - CSV Template", False, f"Status: {csv_response.status_code}")
+            return False
+        
+        csv_content = csv_response.text
+        expected_headers = ["plan_name", "speed", "price", "currency", "data_limit", "installation_fee", "coverage_area", "availability"]
+        if not all(header in csv_content for header in expected_headers):
+            self.log_test("Business Data - CSV Template", False, f"Missing headers in CSV template")
+            return False
+        
+        self.log_test("Business Data - CSV Template", True, f"CSV template contains expected headers")
+        
+        # Step 7: Test Leads (find agent with lead action type)
+        print("Step 7: Testing Leads...")
+        
+        # Find or create real estate agent for leads
+        real_estate_agent_id = None
+        for agent in agents:
+            if agent.get('business_type') == 'real_estate':
+                real_estate_agent_id = agent.get('agent_id')
+                break
+        
+        if not real_estate_agent_id:
+            # Create real estate agent
+            agent_data = {"name": "Test Real Estate Agent", "business_type": "real_estate"}
+            create_response = self.session.post(f"{self.base_url}/api/agents", json=agent_data)
+            if create_response.status_code in [200, 201]:
+                real_estate_agent_id = create_response.json().get('agent_id')
+                self.log_test("Leads - Create Real Estate Agent", True, f"Created agent: {real_estate_agent_id}")
+            else:
+                self.log_test("Leads - Create Real Estate Agent", False, f"Status: {create_response.status_code}")
+                return False
+        
+        # CREATE lead
+        lead_data = {
+            "customer_name": "Test Lead",
+            "phone": "9812345678",
+            "email": "test@test.com",
+            "details": "Looking for property"
+        }
+        
+        lead_response = self.session.post(f"{self.base_url}/api/agents/{real_estate_agent_id}/leads", json=lead_data)
+        if lead_response.status_code != 200:
+            self.log_test("Leads - CREATE", False, f"Status: {lead_response.status_code}, Response: {lead_response.text[:200]}")
+            return False
+        
+        created_lead = lead_response.json()
+        lead_id = created_lead.get('lead_id')
+        self.log_test("Leads - CREATE", True, f"Created lead: {lead_id}")
+        
+        # READ leads
+        leads_response = self.session.get(f"{self.base_url}/api/agents/{real_estate_agent_id}/leads")
+        if leads_response.status_code != 200:
+            self.log_test("Leads - READ", False, f"Status: {leads_response.status_code}")
+            return False
+        
+        leads = leads_response.json()
+        found_lead = any(lead.get('lead_id') == lead_id for lead in leads)
+        if not found_lead:
+            self.log_test("Leads - READ", False, f"Created lead not found in {len(leads)} leads")
+            return False
+        
+        self.log_test("Leads - READ", True, f"Found {len(leads)} leads including created lead")
+        
+        # UPDATE lead status
+        status_data = {"status": "contacted"}
+        status_response = self.session.patch(f"{self.base_url}/api/agents/{real_estate_agent_id}/leads/{lead_id}/status", json=status_data)
+        if status_response.status_code != 200:
+            self.log_test("Leads - UPDATE Status", False, f"Status: {status_response.status_code}")
+            return False
+        
+        updated_lead = status_response.json()
+        if updated_lead.get('status') != 'contacted':
+            self.log_test("Leads - UPDATE Status", False, f"Status not updated correctly: {updated_lead.get('status')}")
+            return False
+        
+        self.log_test("Leads - UPDATE Status", True, f"Updated status to {updated_lead.get('status')}")
+        
+        # Step 8: Test Customer Tickets
+        print("Step 8: Testing Customer Tickets...")
+        
+        # CREATE customer ticket
+        ticket_data = {
+            "customer_name": "John",
+            "phone": "9876543210",
+            "issue": "Internet not working",
+            "category": "technical",
+            "priority": "high"
+        }
+        
+        ticket_response = self.session.post(f"{self.base_url}/api/agents/{isp_agent_id}/customer-tickets", json=ticket_data)
+        if ticket_response.status_code != 200:
+            self.log_test("Customer Tickets - CREATE", False, f"Status: {ticket_response.status_code}, Response: {ticket_response.text[:200]}")
+            return False
+        
+        created_ticket = ticket_response.json()
+        ticket_id = created_ticket.get('ticket_id')
+        self.log_test("Customer Tickets - CREATE", True, f"Created ticket: {ticket_id}")
+        
+        # READ customer tickets
+        tickets_response = self.session.get(f"{self.base_url}/api/agents/{isp_agent_id}/customer-tickets")
+        if tickets_response.status_code != 200:
+            self.log_test("Customer Tickets - READ", False, f"Status: {tickets_response.status_code}")
+            return False
+        
+        tickets = tickets_response.json()
+        found_ticket = any(ticket.get('ticket_id') == ticket_id for ticket in tickets)
+        if not found_ticket:
+            self.log_test("Customer Tickets - READ", False, f"Created ticket not found in {len(tickets)} tickets")
+            return False
+        
+        self.log_test("Customer Tickets - READ", True, f"Found {len(tickets)} tickets including created ticket")
+        
+        # UPDATE ticket status
+        ticket_status_data = {"status": "in_progress"}
+        ticket_status_response = self.session.patch(f"{self.base_url}/api/agents/{isp_agent_id}/customer-tickets/{ticket_id}/status", json=ticket_status_data)
+        if ticket_status_response.status_code != 200:
+            self.log_test("Customer Tickets - UPDATE Status", False, f"Status: {ticket_status_response.status_code}")
+            return False
+        
+        updated_ticket = ticket_status_response.json()
+        if updated_ticket.get('status') != 'in_progress':
+            self.log_test("Customer Tickets - UPDATE Status", False, f"Status not updated correctly: {updated_ticket.get('status')}")
+            return False
+        
+        self.log_test("Customer Tickets - UPDATE Status", True, f"Updated status to {updated_ticket.get('status')}")
+        
+        # DELETE business data item (cleanup)
+        delete_response = self.session.delete(f"{self.base_url}/api/agents/{isp_agent_id}/business-data/{item_id}")
+        if delete_response.status_code != 200:
+            self.log_test("Business Data CRUD - DELETE", False, f"Status: {delete_response.status_code}")
+            return False
+        
+        self.log_test("Business Data CRUD - DELETE", True, f"Deleted item: {item_id}")
+        
+        print("✅ Dynamic Business Data System tests completed successfully!")
+        return True
+
     def run_refund_tests(self):
         """Run Refund specific backend tests"""
         print("🚀 Starting Nurekha Refund Backend API Tests")
@@ -1674,9 +1953,42 @@ class NurekhaAPITester:
             print("⚠️  Some Refund tests failed. Check the details above.")
             return False
 
+    def run_dynamic_business_data_tests(self):
+        """Run dynamic business data system tests"""
+        print("🚀 Starting Nurekha Dynamic Business Data API Testing...")
+        print(f"Base URL: {self.base_url}")
+        print("=" * 60)
+        
+        # Health check first
+        if not self.test_health_check():
+            print("❌ Health check failed. Stopping tests.")
+            return False
+        
+        # Test admin login
+        login_success, user_data = self.test_admin_login()
+        if not login_success:
+            print("❌ Admin login failed. Cannot proceed with authenticated tests.")
+            return False
+        
+        # Test dynamic business data system
+        self.test_dynamic_business_data_system()
+        
+        # Print summary
+        print("\n" + "=" * 60)
+        print(f"📊 Dynamic Business Data Test Summary: {self.tests_passed}/{self.tests_run} tests passed")
+        success_rate = (self.tests_passed / self.tests_run) * 100 if self.tests_run > 0 else 0
+        print(f"📈 Success Rate: {success_rate:.1f}%")
+        
+        if self.tests_passed == self.tests_run:
+            print("🎉 All Dynamic Business Data tests passed!")
+            return True
+        else:
+            print("⚠️  Some Dynamic Business Data tests failed. Check the details above.")
+            return False
+
 def main():
     tester = NurekhaAPITester()
-    success = tester.run_refund_tests()
+    success = tester.run_dynamic_business_data_tests()
     
     # Save detailed results
     with open('/app/backend_test_results.json', 'w') as f:
