@@ -44,10 +44,19 @@ export default function SettingsPage() {
       <h1 className="font-serif text-[28px] text-[#0C0A09] mb-1">Settings</h1>
       <p className="text-sm text-[#57534E] mb-8">Manage your account preferences.</p>
 
-      <div className="flex gap-8">
-        {/* Sidebar */}
+      <div className="flex flex-col md:flex-row gap-6 md:gap-8">
+        {/* Sidebar - desktop */}
         <div className="w-48 shrink-0 hidden md:block">
           <nav className="space-y-1">{sections.map(s => { const Icon = s.icon; return (<button key={s.key} onClick={() => setActiveSection(s.key)} data-testid={`settings-nav-${s.key}`} className={`w-full flex items-center gap-2.5 h-10 px-3 rounded-lg text-sm transition-colors ${activeSection === s.key ? "bg-[#F5F0EB] text-[#1C1917] font-medium" : "text-[#57534E] hover:bg-[#FAFAFA]"}`}><Icon className="w-4 h-4" />{s.label}</button>); })}</nav>
+        </div>
+
+        {/* Tabs - mobile */}
+        <div className="md:hidden flex gap-1 bg-[#F5F5F4] rounded-lg p-1">
+          {sections.map(s => { const Icon = s.icon; return (
+            <button key={s.key} onClick={() => setActiveSection(s.key)} className={`flex-1 flex items-center justify-center gap-1.5 h-9 rounded-md text-xs font-medium transition-colors ${activeSection === s.key ? "bg-white text-[#0C0A09] shadow-sm" : "text-[#57534E]"}`}>
+              <Icon className="w-3.5 h-3.5" />{s.label}
+            </button>
+          ); })}
         </div>
 
         {/* Content */}
