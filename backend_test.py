@@ -1267,6 +1267,241 @@ class NurekhaAPITester:
             self.log_test("Support Ticket Unread Count", False, str(e))
             return False
 
+    def test_refund_flow(self):
+        """Test complete refund flow as specified in review request"""
+        try:
+            print("\n🔄 Starting Refund Flow Test...")
+            
+            # Step 1: Get agents and find E-commerce agent
+            print("Step 1: Getting agents...")
+            agents_response = self.session.get(f"{self.base_url}/api/agents")
+            if agents_response.status_code != 200:
+                self.log_test("Refund Flow - Get Agents", False, f"Failed to get agents: {agents_response.status_code}")
+                return False
+            
+            agents = agents_response.json()
+            ecommerce_agent_id = None
+            
+            for agent in agents:
+                if agent.get('business_type') == 'E-commerce':
+                    ecommerce_agent_id = agent.get('agent_id')
+                    break
+            
+            if not ecommerce_agent_id:
+                self.log_test("Refund Flow - Find E-commerce Agent", False, "No E-commerce agent found")
+                return False
+            
+            self.log_test("Refund Flow - Find E-commerce Agent", True, f"Found E-commerce agent: {ecommerce_agent_id[:12]}...")
+            
+            # Step 2: Create an order for this agent
+            print("Step 2: Creating order...")
+            order_data = {
+                "agent_id": ecommerce_agent_id,
+                "end_user_name": "Refund Test Customer",
+                "items": [{"name": "Test Product", "quantity": 1, "price": 5000}],
+                "total_amount": 5000,
+                "payment_method": "khalti"
+            }
+            
+            create_response = self.session.post(f"{self.base_url}/api/orders", json=order_data)
+            if create_response.status_code != 200:
+                self.log_test("Refund Flow - Create Order", False, f"Failed to create order: {create_response.status_code}")
+                return False
+            
+            order = create_response.json()
+            order_id = order.get('order_id')
+            initial_payment_status = order.get('payment_status', 'unknown')
+            self.log_test("Refund Flow - Create Order", True, f"Created order: {order_id}, Initial payment_status: {initial_payment_status}")
+            
+            # Step 3: Update order to confirmed status
+            print("Step 3: Updating order to confirmed...")
+            status_data = {"status": "confirmed"}
+            status_response = self.session.patch(f"{self.base_url}/api/orders/{order_id}/status", json=status_data)
+            if status_response.status_code != 200:
+                self.log_test("Refund Flow - Update Order Status", False, f"Failed to update order status: {status_response.status_code}")
+                return False
+            
+            updated_order = status_response.json()
+            payment_status_after_confirm = updated_order.get('payment_status', 'unknown')
+            self.log_test("Refund Flow - Update Order Status", True, f"Order status: {updated_order.get('order_status')}, Payment status: {payment_status_after_confirm}")
+            
+            # Verify payment status is now 'paid'
+            if payment_status_after_confirm != 'paid':
+                self.log_test("Refund Flow - Payment Status Verification", False, f"Expected payment_status 'paid', got '{payment_status_after_confirm}'")
+                return False
+            else:
+                self.log_test("Refund Flow - Payment Status Verification", True, "Payment status correctly set to 'paid' after confirming order")
+            
+            # Step 4: Process refund
+            print("Step 4: Processing refund...")
+            refund_data = {
+                "reason": "Customer request",
+                "amount": 5000
+            }
+            
+            refund_response = self.session.post(f"{self.base_url}/api/orders/{order_id}/refund", json=refund_data)
+            if refund_response.status_code != 200:
+                self.log_test("Refund Flow - Process Refund", False, f"Failed to process refund: {refund_response.status_code}, Response: {refund_response.text[:200]}")
+                return False
+            
+            refunded_order = refund_response.json()
+            refund_id = refunded_order.get('refund_id')
+            refund_amount = refunded_order.get('refund_amount')
+            final_payment_status = refunded_order.get('payment_status')
+            final_order_status = refunded_order.get('order_status')
+            
+            self.log_test("Refund Flow - Process Refund", True, f"Refund processed: {refund_id}, Amount: {refund_amount}, Payment status: {final_payment_status}, Order status: {final_order_status}")
+            
+            # Step 5: List refunds
+            print("Step 5: Listing refunds...")
+            refunds_response = self.session.get(f"{self.base_url}/api/refunds?agent_id={ecommerce_agent_id}")
+            if refunds_response.status_code != 200:
+                self.log_test("Refund Flow - List Refunds", False, f"Failed to list refunds: {refunds_response.status_code}")
+                return False
+            
+            refunds = refunds_response.json()
+            found_refund = any(r.get('order_id') == order_id for r in refunds)
+            
+            if found_refund:
+                self.log_test("Refund Flow - List Refunds", True, f"Found {len(refunds)} refunds including our test refund")
+            else:
+                self.log_test("Refund Flow - List Refunds", False, f"Test refund not found in {len(refunds)} refunds")
+                return False
+            
+            # Step 6: Check notifications
+            print("Step 6: Checking notifications...")
+            notifications_response = self.session.get(f"{self.base_url}/api/notifications")
+            if notifications_response.status_code != 200:
+                self.log_test("Refund Flow - Check Notifications", False, f"Failed to get notifications: {notifications_response.status_code}")
+                return False
+            
+            notifications = notifications_response.json()
+            refund_notification = None
+            
+            for notification in notifications:
+                if notification.get('type') == 'order_refunded' and order_id in notification.get('message', ''):
+                    refund_notification = notification
+                    break
+            
+            if refund_notification:
+                notification_title = refund_notification.get('title')
+                notification_message = refund_notification.get('message')
+                self.log_test("Refund Flow - Check Notifications", True, f"Found refund notification: '{notification_title}' - {notification_message}")
+            else:
+                self.log_test("Refund Flow - Check Notifications", False, "Refund notification not found")
+                return False
+            
+            print("✅ Refund flow test completed successfully!")
+            return True
+            
+        except Exception as e:
+            self.log_test("Refund Flow", False, str(e))
+            return False
+
+    def test_refund_edge_cases(self):
+        """Test refund edge cases and error conditions"""
+        try:
+            print("\n🔍 Testing Refund Edge Cases...")
+            
+            # Get E-commerce agent
+            agents_response = self.session.get(f"{self.base_url}/api/agents")
+            if agents_response.status_code != 200:
+                self.log_test("Refund Edge Cases - Get Agents", False, "Failed to get agents")
+                return False
+            
+            agents = agents_response.json()
+            ecommerce_agent_id = None
+            for agent in agents:
+                if agent.get('business_type') == 'E-commerce':
+                    ecommerce_agent_id = agent.get('agent_id')
+                    break
+            
+            if not ecommerce_agent_id:
+                self.log_test("Refund Edge Cases - Find E-commerce Agent", False, "No E-commerce agent found")
+                return False
+            
+            # Test 1: Try to refund non-existent order
+            fake_order_id = "ORD-NONEXISTENT"
+            refund_data = {"reason": "Test", "amount": 1000}
+            response = self.session.post(f"{self.base_url}/api/orders/{fake_order_id}/refund", json=refund_data)
+            
+            if response.status_code == 404:
+                self.log_test("Refund Edge Cases - Non-existent Order", True, "Correctly rejected refund for non-existent order")
+            else:
+                self.log_test("Refund Edge Cases - Non-existent Order", False, f"Expected 404, got {response.status_code}")
+            
+            # Test 2: Try to refund unpaid order
+            # Create an order but don't confirm it (so it stays unpaid)
+            order_data = {
+                "agent_id": ecommerce_agent_id,
+                "end_user_name": "Unpaid Test Customer",
+                "items": [{"name": "Test Product", "quantity": 1, "price": 1000}],
+                "total_amount": 1000,
+                "payment_method": "cod"
+            }
+            
+            create_response = self.session.post(f"{self.base_url}/api/orders", json=order_data)
+            if create_response.status_code == 200:
+                unpaid_order = create_response.json()
+                unpaid_order_id = unpaid_order.get('order_id')
+                
+                # Try to refund the unpaid order
+                refund_response = self.session.post(f"{self.base_url}/api/orders/{unpaid_order_id}/refund", json=refund_data)
+                
+                if refund_response.status_code == 400:
+                    error_detail = refund_response.json().get('detail', '')
+                    if "Only paid orders can be refunded" in error_detail:
+                        self.log_test("Refund Edge Cases - Unpaid Order", True, "Correctly rejected refund for unpaid order")
+                    else:
+                        self.log_test("Refund Edge Cases - Unpaid Order", False, f"Wrong error message: {error_detail}")
+                else:
+                    self.log_test("Refund Edge Cases - Unpaid Order", False, f"Expected 400, got {refund_response.status_code}")
+            else:
+                self.log_test("Refund Edge Cases - Create Unpaid Order", False, "Failed to create test order")
+            
+            # Test 3: Test partial refund
+            # Create and confirm an order for partial refund test
+            order_data = {
+                "agent_id": ecommerce_agent_id,
+                "end_user_name": "Partial Refund Customer",
+                "items": [{"name": "Expensive Product", "quantity": 1, "price": 10000}],
+                "total_amount": 10000,
+                "payment_method": "khalti"
+            }
+            
+            create_response = self.session.post(f"{self.base_url}/api/orders", json=order_data)
+            if create_response.status_code == 200:
+                order = create_response.json()
+                order_id = order.get('order_id')
+                
+                # Confirm the order
+                status_response = self.session.patch(f"{self.base_url}/api/orders/{order_id}/status", json={"status": "confirmed"})
+                
+                if status_response.status_code == 200:
+                    # Process partial refund (half the amount)
+                    partial_refund_data = {"reason": "Partial refund test", "amount": 5000}
+                    refund_response = self.session.post(f"{self.base_url}/api/orders/{order_id}/refund", json=partial_refund_data)
+                    
+                    if refund_response.status_code == 200:
+                        refunded_order = refund_response.json()
+                        refund_amount = refunded_order.get('refund_amount')
+                        if refund_amount == 5000:
+                            self.log_test("Refund Edge Cases - Partial Refund", True, f"Partial refund processed correctly: NPR {refund_amount}")
+                        else:
+                            self.log_test("Refund Edge Cases - Partial Refund", False, f"Expected refund amount 5000, got {refund_amount}")
+                    else:
+                        self.log_test("Refund Edge Cases - Partial Refund", False, f"Partial refund failed: {refund_response.status_code}")
+                else:
+                    self.log_test("Refund Edge Cases - Confirm Order for Partial", False, "Failed to confirm order for partial refund test")
+            else:
+                self.log_test("Refund Edge Cases - Create Order for Partial", False, "Failed to create order for partial refund test")
+            
+            return True
+            
+        except Exception as e:
+            self.log_test("Refund Edge Cases", False, str(e))
+            return False
+
     def run_phase1_tests(self):
         """Run Phase 1 specific backend tests"""
         print("🚀 Starting Nurekha Phase 1 Backend API Tests")
@@ -1402,9 +1637,46 @@ class NurekhaAPITester:
             print("⚠️  Some Phase 2 tests failed. Check the details above.")
             return False
 
+    def run_refund_tests(self):
+        """Run Refund specific backend tests"""
+        print("🚀 Starting Nurekha Refund Backend API Tests")
+        print("=" * 50)
+        
+        # Test API health first
+        if not self.test_health_check():
+            print("❌ API is not responding. Stopping tests.")
+            return False
+        
+        # Test admin login
+        login_success, user_data = self.test_admin_login()
+        if not login_success:
+            print("❌ Admin login failed. Cannot proceed with authenticated tests.")
+            return False
+        
+        print("\n💰 Testing Refund Flow...")
+        # Test complete refund flow
+        self.test_refund_flow()
+        
+        print("\n🔍 Testing Refund Edge Cases...")
+        # Test refund edge cases
+        self.test_refund_edge_cases()
+        
+        # Print summary
+        print("\n" + "=" * 50)
+        print(f"📊 Refund Test Summary: {self.tests_passed}/{self.tests_run} tests passed")
+        success_rate = (self.tests_passed / self.tests_run) * 100 if self.tests_run > 0 else 0
+        print(f"📈 Success Rate: {success_rate:.1f}%")
+        
+        if self.tests_passed == self.tests_run:
+            print("🎉 All Refund tests passed!")
+            return True
+        else:
+            print("⚠️  Some Refund tests failed. Check the details above.")
+            return False
+
 def main():
     tester = NurekhaAPITester()
-    success = tester.run_phase2_tests()
+    success = tester.run_refund_tests()
     
     # Save detailed results
     with open('/app/backend_test_results.json', 'w') as f:

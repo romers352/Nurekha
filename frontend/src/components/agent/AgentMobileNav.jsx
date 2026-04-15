@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   LayoutDashboard, Plug, Brain, MessageSquare, FolderOpen,
   ShoppingBag, Settings, ChevronLeft, Menu, X, Hotel, CalendarCheck,
+  RotateCcw,
 } from "lucide-react";
 import axios from "axios";
 
@@ -37,6 +38,7 @@ export default function AgentMobileNav() {
       base.push(
         { icon: FolderOpen, label: "Uploaded Data", href: `/agent/${agentId}/data` },
         { icon: ShoppingBag, label: "Orders", href: `/agent/${agentId}/orders` },
+        { icon: RotateCcw, label: "Refunds", href: `/agent/${agentId}/refunds` },
       );
     } else if (businessType === "Hotel") {
       base.push(

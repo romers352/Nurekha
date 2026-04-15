@@ -270,6 +270,18 @@ backend:
         agent: "testing"
         comment: "✅ TESTED: Support ticket unread count working correctly. GET /api/support/tickets/unread-count returns proper count structure with 'count' field."
 
+  - task: "Refund endpoints"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "✅ TESTED: Complete refund flow working correctly. Successfully tested: 1) GET /api/agents to find E-commerce agent, 2) POST /api/orders to create order, 3) PATCH /api/orders/{id}/status to confirm order (automatically sets payment_status to 'paid'), 4) POST /api/orders/{id}/refund to process refund, 5) GET /api/refunds?agent_id={id} to list refunds, 6) GET /api/notifications to verify refund notification created. Edge cases tested: non-existent order (404), unpaid order rejection (400), partial refunds. All endpoints functioning properly with correct status codes and data validation."
+
 frontend:
   - task: "Signup page - business type removed"
     implemented: true
@@ -369,8 +381,8 @@ frontend:
 
 metadata:
   created_by: "main_agent"
-  version: "2.0"
-  test_sequence: 3
+  version: "2.1"
+  test_sequence: 4
   run_ui: true
 
 test_plan:
@@ -388,3 +400,5 @@ agent_communication:
     message: "✅ PHASE 2 BACKEND TESTING COMPLETE: All 15 tests passed (100% success rate). Tested custom billing minimum enforcement (correctly rejects <100, accepts >=100), hotel rooms CRUD (CREATE/READ/UPDATE/DELETE all working), hotel bookings CRUD (create booking, list by agent_id, update status), support file upload (accepts base64 data), and support ticket unread count. All Phase 2 APIs working correctly with proper validation and responses."
   - agent: "testing"
     message: "✅ COMPREHENSIVE UI TESTING COMPLETE: 35/36 tests passed (97% success rate). All major flows working correctly: 1) Signup page - business type removed ✓, 2) Login flow - dashboard loads with real data ✓, 3) TopBar navigation - profile/billing/notifications all working ✓, 4) Billing custom purchase - validation and presets working ✓, 5) Agent creation with business type - instant update ✓, 6) Agent rename/deactivate - both working ✓, 7) Agent dashboard - dynamic sidebar (E-commerce shows Uploaded Data + Orders) ✓, 8) Support page - all fields and file attachment present ✓. Minor note: Pie charts show empty state when no message data exists (expected behavior)."
+  - agent: "testing"
+    message: "✅ REFUND ENDPOINTS TESTING COMPLETE: All 12 tests passed (100% success rate). Successfully tested complete refund flow: 1) GET /api/agents to find E-commerce agent ✓, 2) POST /api/orders to create order ✓, 3) PATCH /api/orders/{id}/status to confirm order (automatically sets payment_status to 'paid') ✓, 4) POST /api/orders/{id}/refund to process refund ✓, 5) GET /api/refunds?agent_id={id} to list refunds ✓, 6) GET /api/notifications to verify refund notification created ✓. Edge cases tested: non-existent order returns 404 ✓, unpaid order rejection returns 400 with correct error message ✓, partial refunds work correctly ✓. All refund endpoints functioning properly with correct status codes, data validation, and business logic."

@@ -142,8 +142,9 @@ export default function AgentsPage() {
     if (!newName.trim() || !newBusinessType) return;
     setCreating(true);
     try {
-      const { data } = await axios.post(`${API}/api/agents`, { name: newName, business_type: newBusinessType }, { withCredentials: true });
-      setAgents(prev => [...prev, data]);
+      await axios.post(`${API}/api/agents`, { name: newName, business_type: newBusinessType }, { withCredentials: true });
+      // Force refetch from server for reliable state
+      await fetchAgents();
       setNewName("");
       setNewBusinessType("");
       setCreateOpen(false);

@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   LayoutDashboard, Plug, Brain, MessageSquare, FolderOpen,
   ShoppingBag, Settings, ChevronLeft, ChevronRight, Hotel, CalendarCheck,
+  RotateCcw,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -54,6 +55,7 @@ export default function AgentSidebar() {
       base.push(
         { icon: FolderOpen, label: "Uploaded Data", href: `/agent/${agentId}/data` },
         { icon: ShoppingBag, label: "Orders", href: `/agent/${agentId}/orders` },
+        { icon: RotateCcw, label: "Refunds", href: `/agent/${agentId}/refunds` },
       );
     } else if (businessType === "Hotel") {
       base.push(

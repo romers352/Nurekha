@@ -1541,7 +1541,31 @@ async def refund_order(order_id: str, request: Request):
     history.append({"status": "refunded", "timestamp": now, "note": reason})
     await db.orders.update_one({"order_id": order_id}, {"$set": {"payment_status": "refunded", "order_status": "cancelled", "refund_id": refund_id, "refund_amount": refund_amount, "refund_reason": reason, "status_history": history, "updated_at": now}})
     updated = await db.orders.find_one({"order_id": order_id}, {"_id": 0})
+
+    # Create notification
+    await db.notifications.insert_one({
+        "notification_id": str(uuid.uuid4()),
+        "user_id": user_id,
+        "type": "order_refunded",
+        "title": "Refund Processed",
+        "message": f"Order {order_id} refunded NPR {refund_amount}. Reason: {reason or 'N/A'}",
+        "read": False,
+        "created_at": now,
+    })
+
     return updated
+
+
+@api_router.get("/refunds")
+async def list_refunds(request: Request, agent_id: Optional[str] = None):
+    """List all refunded orders for the user."""
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    query = {"client_id": user_id, "refund_id": {"$exists": True, "$ne": None}}
+    if agent_id:
+        query["agent_id"] = agent_id
+    refunds = await db.orders.find(query, {"_id": 0}).sort("updated_at", -1).to_list(500)
+    return refunds
 
 
 # ─── Agent Settings ───
