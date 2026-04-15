@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 
 class NurekhaAPITester:
-    def __init__(self, base_url="https://customer-automation-1.preview.emergentagent.com"):
+    def __init__(self, base_url="https://api-fixes-ui.preview.emergentagent.com"):
         self.base_url = base_url
         self.session = requests.Session()
         self.tests_run = 0
