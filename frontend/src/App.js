@@ -22,6 +22,8 @@ import ConnectChannelsPage from "@/pages/agent/ConnectChannelsPage";
 import TrainAgentPage from "@/pages/agent/TrainAgentPage";
 import BusinessChatPage from "@/pages/agent/BusinessChatPage";
 import AgentDataPage from "@/pages/agent/AgentDataPage";
+import FAQsPage from "@/pages/agent/FAQsPage";
+import DocumentsPage from "@/pages/agent/DocumentsPage";
 import AgentOrdersPage from "@/pages/agent/AgentOrdersPage";
 import AgentSettingsPage from "@/pages/agent/AgentSettingsPage";
 import HotelRoomsPage from "@/pages/agent/HotelRoomsPage";
@@ -69,6 +71,8 @@ function AppRouter() {
         <Route index element={<AgentOverview />} />
         <Route path="connect" element={<ConnectChannelsPage />} />
         <Route path="train" element={<TrainAgentPage />} />
+        <Route path="faqs" element={<FAQsPage />} />
+        <Route path="docs" element={<DocumentsPage />} />
         <Route path="chat" element={<BusinessChatPage />} />
         <Route path="data" element={<AgentDataPage />} />
         <Route path="orders" element={<AgentOrdersPage />} />

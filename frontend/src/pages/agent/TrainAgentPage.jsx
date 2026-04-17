@@ -315,30 +315,19 @@ function TestAgentTab({ agentId }) {
   );
 }
 
-/* ─── Main Train Agent Page ─── */
-const TABS = [
-  { key: "info", label: "Business Info", icon: Building2 },
-  { key: "faqs", label: "FAQs", icon: HelpCircle },
-  { key: "documents", label: "Documents", icon: FileText },
-  { key: "products", label: "Products", icon: ShoppingBag },
-  { key: "test", label: "Test Agent", icon: MessageSquare },
-];
-
+/* ─── Main Train Agent Page (Business Info Only) ─── */
 export default function TrainAgentPage() {
   const { agentId } = useParams();
-  const [activeTab, setActiveTab] = useState("info");
 
   return (
-    <div className="min-h-screen" data-testid="train-agent-page">
-      <div className="px-6 lg:px-8 pt-6 pb-0"><h1 className="font-serif text-[28px] text-[#0C0A09]">Train Agent</h1><p className="text-sm text-[#57534E] mt-1">Teach your AI about your business.</p></div>
-      <div className="sticky top-0 bg-white border-b border-[#E7E5E4] z-30 mt-4"><div className="px-6 lg:px-8 flex overflow-x-auto scrollbar-hide">{TABS.map(tab => { const Icon = tab.icon; return (<button key={tab.key} data-testid={`tab-${tab.key}`} onClick={() => setActiveTab(tab.key)} className={`h-12 px-5 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 whitespace-nowrap shrink-0 ${activeTab === tab.key ? "border-[#0C0A09] text-[#0C0A09]" : "border-transparent text-[#57534E] hover:text-[#0C0A09] hover:border-[#D6D3D1]"}`}><Icon className="w-4 h-4" />{tab.label}</button>); })}</div></div>
-      <div className="p-6 lg:p-8"><AnimatePresence mode="wait"><motion.div key={activeTab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2 }}>
-        {activeTab === "info" && <BusinessInfoTab agentId={agentId} />}
-        {activeTab === "faqs" && <FAQsTab agentId={agentId} />}
-        {activeTab === "documents" && <DocumentsTab agentId={agentId} />}
-        {activeTab === "products" && <ProductsTab agentId={agentId} />}
-        {activeTab === "test" && <TestAgentTab agentId={agentId} />}
-      </motion.div></AnimatePresence></div>
+    <div className="min-h-screen bg-[#FAFAFA]">
+      <div className="px-6 lg:px-8 pt-6 pb-4">
+        <h1 className="font-serif text-[28px] text-[#0C0A09]">Train Agent</h1>
+        <p className="text-sm text-[#57534E] mt-1">Configure your AI agent's business information and behavior.</p>
+      </div>
+      <div className="px-6 lg:px-8 pb-8">
+        <BusinessInfoTab agentId={agentId} />
+      </div>
     </div>
   );
 }
