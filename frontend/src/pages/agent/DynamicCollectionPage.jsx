@@ -40,13 +40,52 @@ export default function DynamicCollectionPage() {
   const [formErrors, setFormErrors] = useState({});
   const [saving, setSaving] = useState(false);
 
+  // Fetch schemas and items
+  const fetchData = useCallback(async () => {
+    try {
+      // Get agent's schemas
+      const schemasRes = await axios.get(`${API}/api/agents/${agentId}/schemas`, {
+        withCredentials: true,
+      });
+
+      setAllSchemas(schemasRes.data || []);
+
+      if (schemasRes.data.length === 0) {
+        setLoading(false);
+        return;
+      }
+
+      // Find schema by collection name (if provided) or use first
+      let targetSchema;
+      if (collectionName) {
+        targetSchema = schemasRes.data.find(s => s.collection_name === collectionName);
+      }
+      if (!targetSchema) {
+        targetSchema = schemasRes.data[0];
+      }
+      
+      setSchema(targetSchema);
+
+      // Fetch items for this collection
+      const itemsRes = await axios.get(
+        `${API}/api/agents/${agentId}/collections/${targetSchema.collection_name}/items`,
+        { withCredentials: true }
+      );
+      setItems(itemsRes.data);
+    } catch (err) {
+      console.error("Failed to fetch data", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [agentId, collectionName]);
+
   useEffect(() => {
     fetchData();
     // Reset filters/search when switching collection
     setSearch("");
     setActiveFilters({});
     setFilterOpen(false);
-  }, [agentId, collectionName]);
+  }, [agentId, collectionName, fetchData]);
 
   // NOTE: localStorage here stores ONLY column-visibility preferences
   // (list of non-sensitive schema field names, e.g. ["name","price","sku"]).
