@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { Plus, Trash2, Save, Loader2, Settings2, AlertCircle, Copy, Edit3, GripVertical } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import {
   DndContext,
   closestCenter,
@@ -493,6 +493,9 @@ export default function SchemaBuilderPage() {
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingSchema ? "Edit Collection Fields" : "Create New Collection"}</DialogTitle>
+            <DialogDescription>
+              {editingSchema ? "Modify the fields for this collection" : "Define the structure and fields for your new collection"}
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-6">
@@ -669,6 +672,9 @@ export default function SchemaBuilderPage() {
               <AlertCircle className="w-5 h-5 text-[#F59E0B]" />
               Confirm Schema Update
             </DialogTitle>
+            <DialogDescription>
+              Review the changes before updating your collection schema
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <p className="text-sm text-[#57534E]">You are about to update this schema. This may affect existing data:</p>
@@ -693,6 +699,9 @@ export default function SchemaBuilderPage() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Rename Collection</DialogTitle>
+            <DialogDescription>
+              Change the display name or internal identifier of this collection
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
@@ -745,6 +754,9 @@ export default function SchemaBuilderPage() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Duplicate Collection</DialogTitle>
+            <DialogDescription>
+              Create a copy with the same fields but empty data
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-[#57534E]">

@@ -4,7 +4,7 @@ import {
   Plus, Pencil, Trash2, Loader2, Search, Grid, List, AlertCircle,
   Upload, Filter, X, ChevronDown, Columns, Image as ImageIcon, Check
 } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import DynamicFormField from "@/components/DynamicFormField";
 import CSVUploadDialog from "@/components/CSVUploadDialog";
 import axios from "axios";
@@ -642,6 +642,9 @@ export default function DynamicCollectionPage() {
             <DialogTitle>
               {editingItem ? `Edit ${schema.display_name.replace(/s$/, "")}` : `Add ${schema.display_name.replace(/s$/, "")}`}
             </DialogTitle>
+            <DialogDescription>
+              {editingItem ? `Update the details of this ${schema.display_name.replace(/s$/, "").toLowerCase()}` : `Fill in the details to add a new ${schema.display_name.replace(/s$/, "").toLowerCase()}`}
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
