@@ -336,6 +336,18 @@ backend:
         agent: "testing"
         comment: "✅ TESTED: Complete Phase 7 backend validation system working correctly. All 17 tests passed (100% success rate). Successfully tested: 1) Valid item creation with proper data ✓, 2) Required field validation - correctly rejects missing required 'sku' field ✓, 3) Unique constraint validation - correctly rejects duplicate 'sku' values ✓, 4) String length validation - correctly enforces min_length=3 and max_length=10 for 'sku' field ✓, 5) Number range validation - correctly enforces min=0 and max=10000 for 'price' field ✓, 6) Type validation - correctly rejects non-numeric values for number fields ✓, 7) Image count validation - correctly enforces max_count=3 for 'photos' field ✓, 8) Unique constraint excludes self on update - allows updating item with same unique value ✓, 9) Unique constraint violation on update - correctly rejects updating to existing unique value ✓, 10) MAX_FIELDS_PER_SCHEMA=20 limit enforcement - correctly rejects schema creation with 21 fields ✓. All validation error messages are user-friendly and descriptive. Validation system is production-ready."
 
+
+  - task: "Selective CSV Export (Phase 7 — frontend)"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/lib/csvExport.js + 5 output pages"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Created /app/frontend/src/lib/csvExport.js helper (downloadCSV + filenameTimestamp) with proper CSV escaping + UTF-8 BOM for Excel. Added Export CSV button to 5 OUTPUT DATA pages (LeadsPage, CustomerTicketsPage, AgentOrdersPage, HotelBookingsPage, RefundPage). Button disabled when list is empty. Exports currently-filtered view. DynamicCollectionPage (business data) intentionally does NOT get Export CSV — verified via screenshot (Rooms page has 'CSV Upload' but NO 'Export CSV'; Bookings page has both 'Export CSV' and 'New Booking')."
 frontend:
   - task: "Signup page - business type removed"
     implemented: true
