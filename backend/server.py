@@ -380,12 +380,15 @@ async def create_default_schema_for_agent(agent_id: str, business_type: str):
     if existing:
         return existing
     
+    # Order after existing schemas for the agent
+    existing_count = await db.agent_schemas.count_documents({"agent_id": agent_id})
     schema_doc = {
         "agent_id": agent_id,
         "collection_name": schema_template["collection_name"],
         "display_name": schema_template["display_name"],
         "fields": schema_template["fields"],
         "is_default": True,
+        "order": existing_count,
         "created_at": now,
         "updated_at": now
     }
@@ -393,6 +396,10 @@ async def create_default_schema_for_agent(agent_id: str, business_type: str):
     await db.agent_schemas.insert_one(schema_doc)
     schema_doc.pop("_id", None)
     return schema_doc
+
+
+# ─── Multi-Collection constants ───
+MAX_COLLECTIONS_PER_AGENT = 2
 
 
 # ─── Helpers ───
@@ -2272,8 +2279,17 @@ async def get_agent_schemas(agent_id: str, request: Request):
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
     
-    # Get all schemas for this agent
+    # Get all schemas for this agent, sorted by order (then created_at for legacy)
     schemas = await db.agent_schemas.find({"agent_id": agent_id}, {"_id": 0}).to_list(100)
+    # Attach item_count for each and normalize order
+    for idx, s in enumerate(schemas):
+        if "order" not in s or s["order"] is None:
+            s["order"] = idx
+        s["item_count"] = await db.agent_collections.count_documents({
+            "agent_id": agent_id,
+            "collection_name": s["collection_name"]
+        })
+    schemas.sort(key=lambda x: (x.get("order", 999), x.get("created_at", "")))
     return schemas
 
 
@@ -2354,6 +2370,15 @@ async def create_or_update_schema(agent_id: str, request: Request):
     # Check if schema exists
     existing = await db.agent_schemas.find_one({"agent_id": agent_id, "collection_name": collection_name})
     
+    # Enforce collection limit when creating new
+    if not existing:
+        current_count = await db.agent_schemas.count_documents({"agent_id": agent_id})
+        if current_count >= MAX_COLLECTIONS_PER_AGENT:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Maximum of {MAX_COLLECTIONS_PER_AGENT} collections per agent reached. Delete or rename an existing one to add a new collection."
+            )
+    
     schema_doc = {
         "agent_id": agent_id,
         "collection_name": collection_name,
@@ -2363,18 +2388,157 @@ async def create_or_update_schema(agent_id: str, request: Request):
     }
     
     if existing:
-        # Update existing schema
+        # Update existing schema (preserve order, created_at, is_default)
         await db.agent_schemas.update_one(
             {"agent_id": agent_id, "collection_name": collection_name},
             {"$set": schema_doc}
         )
     else:
-        # Create new schema
+        # Create new schema with next order value
+        current_count = await db.agent_schemas.count_documents({"agent_id": agent_id})
+        schema_doc["order"] = current_count
+        schema_doc["is_default"] = False
         schema_doc["created_at"] = now
         await db.agent_schemas.insert_one(schema_doc)
     
     schema_doc.pop("_id", None)
     return schema_doc
+
+
+@api_router.put("/agents/{agent_id}/schemas/{collection_name}/rename")
+async def rename_schema(agent_id: str, collection_name: str, request: Request):
+    """Rename a collection: changes internal collection_name (with data migration) and/or display_name."""
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id}, {"_id": 0})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    
+    body = await request.json()
+    new_collection_name = body.get("new_collection_name", "").strip().lower().replace(" ", "_")
+    new_display_name = body.get("new_display_name", "").strip()
+    
+    if not new_collection_name and not new_display_name:
+        raise HTTPException(status_code=400, detail="Provide new_collection_name or new_display_name")
+    
+    existing = await db.agent_schemas.find_one({"agent_id": agent_id, "collection_name": collection_name})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Schema not found")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    update_fields = {"updated_at": now}
+    
+    # Display name change is simple
+    if new_display_name:
+        update_fields["display_name"] = new_display_name
+    
+    # Collection key change requires data migration
+    if new_collection_name and new_collection_name != collection_name:
+        # Ensure target name not already used by another schema for this agent
+        conflict = await db.agent_schemas.find_one({
+            "agent_id": agent_id,
+            "collection_name": new_collection_name
+        })
+        if conflict:
+            raise HTTPException(status_code=400, detail=f"Collection '{new_collection_name}' already exists for this agent")
+        
+        update_fields["collection_name"] = new_collection_name
+        
+        # Migrate all data docs' collection_name field
+        await db.agent_collections.update_many(
+            {"agent_id": agent_id, "collection_name": collection_name},
+            {"$set": {"collection_name": new_collection_name}}
+        )
+    
+    await db.agent_schemas.update_one(
+        {"agent_id": agent_id, "collection_name": collection_name},
+        {"$set": update_fields}
+    )
+    
+    final_name = new_collection_name if new_collection_name else collection_name
+    updated = await db.agent_schemas.find_one(
+        {"agent_id": agent_id, "collection_name": final_name},
+        {"_id": 0}
+    )
+    updated["item_count"] = await db.agent_collections.count_documents({
+        "agent_id": agent_id,
+        "collection_name": final_name
+    })
+    return updated
+
+
+@api_router.post("/agents/{agent_id}/schemas/{collection_name}/duplicate")
+async def duplicate_schema(agent_id: str, collection_name: str, request: Request):
+    """Duplicate a schema: copies fields into a new collection with empty data."""
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id}, {"_id": 0})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    
+    # Enforce collection limit
+    current_count = await db.agent_schemas.count_documents({"agent_id": agent_id})
+    if current_count >= MAX_COLLECTIONS_PER_AGENT:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Maximum of {MAX_COLLECTIONS_PER_AGENT} collections per agent reached. Delete an existing one first."
+        )
+    
+    source = await db.agent_schemas.find_one({"agent_id": agent_id, "collection_name": collection_name}, {"_id": 0})
+    if not source:
+        raise HTTPException(status_code=404, detail="Source schema not found")
+    
+    body = await request.json() if (request.headers.get("content-length") and int(request.headers.get("content-length")) > 0) else {}
+    new_collection_name = (body.get("new_collection_name") or f"{collection_name}_copy").strip().lower().replace(" ", "_")
+    new_display_name = (body.get("new_display_name") or f"{source.get('display_name', collection_name)} (Copy)").strip()
+    
+    # Ensure unique name
+    conflict = await db.agent_schemas.find_one({"agent_id": agent_id, "collection_name": new_collection_name})
+    if conflict:
+        raise HTTPException(status_code=400, detail=f"Collection '{new_collection_name}' already exists. Choose a different name.")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    new_doc = {
+        "agent_id": agent_id,
+        "collection_name": new_collection_name,
+        "display_name": new_display_name,
+        "fields": source.get("fields", []),
+        "is_default": False,
+        "order": current_count,
+        "created_at": now,
+        "updated_at": now,
+    }
+    await db.agent_schemas.insert_one(new_doc)
+    new_doc.pop("_id", None)
+    new_doc["item_count"] = 0
+    return new_doc
+
+
+@api_router.patch("/agents/{agent_id}/schemas/reorder")
+async def reorder_schemas(agent_id: str, request: Request):
+    """Reorder schemas for an agent. Body: { order: [collection_name1, collection_name2, ...] }"""
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id}, {"_id": 0})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    
+    body = await request.json()
+    order_list = body.get("order", [])
+    if not isinstance(order_list, list) or not order_list:
+        raise HTTPException(status_code=400, detail="order must be a non-empty list of collection names")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    for idx, name in enumerate(order_list):
+        await db.agent_schemas.update_one(
+            {"agent_id": agent_id, "collection_name": name},
+            {"$set": {"order": idx, "updated_at": now}}
+        )
+    
+    return {"success": True, "order": order_list}
 
 
 @api_router.delete("/agents/{agent_id}/schemas/{collection_name}")
