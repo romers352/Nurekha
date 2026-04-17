@@ -4,7 +4,8 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends, WebSocket, WebSocketDisconnect, UploadFile, File
+from fastapi.responses import FileResponse
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
@@ -2505,14 +2506,106 @@ async def delete_collection_item(agent_id: str, collection_name: str, item_id: s
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
     
-    result = await db.agent_collections.delete_one(
+    # Get item to check for images before deleting
+    item = await db.agent_collections.find_one(
+        {"agent_id": agent_id, "collection_name": collection_name, "item_id": item_id},
+        {"_id": 0}
+    )
+    
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    
+    # Delete associated images from storage
+    if item.get("data"):
+        for field_value in item["data"].values():
+            # Check if field contains image URLs
+            if isinstance(field_value, list):
+                for url in field_value:
+                    if isinstance(url, str) and "/uploads/images/" in url:
+                        try:
+                            filename = url.split("/")[-1]
+                            file_path = UPLOAD_DIR / filename
+                            if file_path.exists():
+                                file_path.unlink()
+                        except:
+                            pass  # Continue even if image deletion fails
+            elif isinstance(field_value, str) and "/uploads/images/" in field_value:
+                try:
+                    filename = field_value.split("/")[-1]
+                    file_path = UPLOAD_DIR / filename
+                    if file_path.exists():
+                        file_path.unlink()
+                except:
+                    pass
+    
+    # Delete item from database
+    await db.agent_collections.delete_one(
         {"agent_id": agent_id, "collection_name": collection_name, "item_id": item_id}
     )
     
-    if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Item not found")
-    
     return {"message": "Item deleted successfully"}
+
+
+# ─── Image Upload ───
+
+UPLOAD_DIR = Path("/app/uploads/images")
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+@api_router.post("/upload/image")
+async def upload_image(request: Request, file: UploadFile = File(...)):
+    """Upload an image and return its URL"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    # Validate file type
+    allowed_types = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="Invalid file type. Only JPEG, PNG, WEBP, and GIF are allowed.")
+    
+    # Validate file size (max 5MB)
+    contents = await file.read()
+    if len(contents) > 5 * 1024 * 1024:  # 5MB
+        raise HTTPException(status_code=400, detail="File too large. Maximum size is 5MB.")
+    
+    # Generate unique filename
+    file_ext = file.filename.split(".")[-1] if "." in file.filename else "jpg"
+    unique_filename = f"{uuid.uuid4().hex[:16]}.{file_ext}"
+    file_path = UPLOAD_DIR / unique_filename
+    
+    # Save file
+    with open(file_path, "wb") as f:
+        f.write(contents)
+    
+    # Return URL path (not full URL, frontend will construct it)
+    return {"url": f"/uploads/images/{unique_filename}"}
+
+
+@api_router.get("/uploads/images/{filename}")
+async def serve_image(filename: str):
+    """Serve uploaded images"""
+    file_path = UPLOAD_DIR / filename
+    
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Image not found")
+    
+    return FileResponse(file_path)
+
+
+@api_router.delete("/uploads/images/{filename}")
+async def delete_image(filename: str, request: Request):
+    """Delete an uploaded image"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    file_path = UPLOAD_DIR / filename
+    
+    if file_path.exists():
+        file_path.unlink()
+        return {"message": "Image deleted"}
+    
+    raise HTTPException(status_code=404, detail="Image not found")
 
 
 # ─── CSV Auto-Detection & Bulk Upload ───

@@ -1,5 +1,8 @@
 import { useState } from "react";
-import { Upload, X, Calendar } from "lucide-react";
+import { Upload, X, Calendar, Loader2 } from "lucide-react";
+import axios from "axios";
+
+const API = process.env.REACT_APP_BACKEND_URL;
 
 /**
  * DynamicFormField - Renders different input types based on field schema
@@ -163,6 +166,7 @@ export default function DynamicFormField({ field, value, onChange, error }) {
 
 /**
  * ImageUploadField - Handles multiple image uploads (up to 6)
+ * Uploads to server and stores URLs
  */
 function ImageUploadField({ value, onChange }) {
   const images = Array.isArray(value) ? value : value ? [value] : [];
@@ -180,24 +184,45 @@ function ImageUploadField({ value, onChange }) {
 
     setUploading(true);
 
-    // For now, create data URLs (local preview)
-    // TODO: Upload to server and get URLs
-    const newImageUrls = await Promise.all(
-      files.map((file) => {
-        return new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.onload = (e) => resolve(e.target.result);
-          reader.readAsDataURL(file);
-        });
-      })
-    );
+    try {
+      // Upload each file to server
+      const uploadPromises = files.map(async (file) => {
+        const formData = new FormData();
+        formData.append("file", file);
 
-    onChange([...images, ...newImageUrls]);
-    setUploading(false);
-    e.target.value = "";
+        const { data } = await axios.post(`${API}/api/upload/image`, formData, {
+          withCredentials: true,
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+
+        // Return full URL
+        return `${API}${data.url}`;
+      });
+
+      const uploadedUrls = await Promise.all(uploadPromises);
+      onChange([...images, ...uploadedUrls]);
+    } catch (err) {
+      console.error("Failed to upload images", err);
+      alert("Failed to upload images. Please try again.");
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
   };
 
-  const removeImage = (index) => {
+  const removeImage = async (index) => {
+    const imageUrl = images[index];
+    
+    // Try to delete from server
+    try {
+      const filename = imageUrl.split("/").pop();
+      await axios.delete(`${API}/api/uploads/images/${filename}`, {
+        withCredentials: true,
+      });
+    } catch (err) {
+      console.error("Failed to delete image from server", err);
+    }
+
     const updated = images.filter((_, i) => i !== index);
     onChange(updated);
   };
@@ -220,11 +245,18 @@ function ImageUploadField({ value, onChange }) {
 
         {images.length < 6 && (
           <label className="aspect-square rounded-lg border-2 border-dashed border-[#E7E5E4] flex flex-col items-center justify-center cursor-pointer hover:bg-[#FAFAFA] transition-colors">
-            <Upload className="w-6 h-6 text-[#A8A29E] mb-1" />
-            <span className="text-xs text-[#A8A29E]">
-              {uploading ? "Uploading..." : `Add Image`}
-            </span>
-            <span className="text-[10px] text-[#D6D3D1]">({images.length}/6)</span>
+            {uploading ? (
+              <>
+                <Loader2 className="w-6 h-6 text-[#0C0A09] animate-spin mb-1" />
+                <span className="text-xs text-[#57534E]">Uploading...</span>
+              </>
+            ) : (
+              <>
+                <Upload className="w-6 h-6 text-[#A8A29E] mb-1" />
+                <span className="text-xs text-[#A8A29E]">Add Image</span>
+                <span className="text-[10px] text-[#D6D3D1]">({images.length}/6)</span>
+              </>
+            )}
             <input
               type="file"
               accept="image/*"
@@ -236,7 +268,7 @@ function ImageUploadField({ value, onChange }) {
           </label>
         )}
       </div>
-      <p className="text-xs text-[#A8A29E] mt-2">Upload up to 6 images. Click to select files.</p>
+      <p className="text-xs text-[#A8A29E] mt-2">Upload up to 6 images. Maximum 5MB per image.</p>
     </div>
   );
 }
