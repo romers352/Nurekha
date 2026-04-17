@@ -309,6 +309,18 @@ backend:
         agent: "testing"
         comment: "✅ TESTED: Complete Phase 5 Multi-Collection Management system working correctly. All 9 tests passed (100% success rate). Successfully tested: 1) GET /api/agents/{agent_id}/schemas returns schemas with item_count field and sorted by order ascending ✓, 2) MAX 2 collection limit enforcement - correctly rejects 3rd collection with proper error message ✓, 3) Rename display_name only - updates display name without data migration ✓, 4) Rename internal key with data migration - successfully renames collection and migrates data from old to new collection name ✓, 5) Rename conflict detection - correctly rejects rename to existing collection name ✓, 6) Duplicate at collection limit - correctly rejects duplicate when at 2/2 limit ✓, 7) Duplicate after freeing slot - successfully duplicates collection with custom names and empty data ✓, 8) Reorder schemas - successfully reorders collections and verifies new order ✓, 9) Cleanup - successfully restores agent to default state ✓. All endpoints functioning properly with correct HTTP status codes, data validation, business logic, and response formats."
 
+  - task: "Table/Card Views & Advanced Search (Phase 6)"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/pages/agent/DynamicCollectionPage.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Phase 6 frontend-only: view toggle (table/card), search-all-fields, advanced filter panel with per-field-type controls (text contains, number range, date range, dropdown, Yes/No, image Has/None), active filter chips with X remove + Clear all, table view shows ALL columns with horizontal scroll + sticky Actions column, Columns popover with All/Reset + localStorage persistence per agent+collection, card view with image placeholder + image-count badge + first 4 non-image key fields. No backend changes."
+
 frontend:
   - task: "Signup page - business type removed"
     implemented: true
