@@ -244,6 +244,124 @@ DEFAULT_SCHEMAS = {
 }
 
 
+def detect_field_type(values):
+    """
+    Auto-detect field type based on sample values
+    Returns: field_type (text, number, date, email, phone, url, checkbox)
+    """
+    import re
+    from datetime import datetime
+    
+    # Filter out empty values
+    non_empty = [str(v).strip() for v in values if v and str(v).strip()]
+    if not non_empty:
+        return "text"
+    
+    # Sample up to 10 values
+    sample = non_empty[:10]
+    
+    # Check for checkbox/boolean (yes/no, true/false, 1/0)
+    boolean_values = {"yes", "no", "true", "false", "1", "0", "y", "n"}
+    if all(str(v).lower() in boolean_values for v in sample):
+        return "checkbox"
+    
+    # Check for numbers
+    number_count = 0
+    for v in sample:
+        try:
+            float(v.replace(",", ""))  # Handle 1,000 format
+            number_count += 1
+        except:
+            pass
+    if number_count == len(sample):
+        return "number"
+    
+    # Check for dates
+    date_patterns = [
+        r'\d{4}-\d{2}-\d{2}',  # YYYY-MM-DD
+        r'\d{2}/\d{2}/\d{4}',  # MM/DD/YYYY
+        r'\d{2}-\d{2}-\d{4}',  # DD-MM-YYYY
+    ]
+    date_count = 0
+    for v in sample:
+        if any(re.match(pattern, str(v)) for pattern in date_patterns):
+            date_count += 1
+    if date_count >= len(sample) * 0.8:  # 80% match
+        return "date"
+    
+    # Check for email
+    email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    if all(re.match(email_pattern, str(v)) for v in sample):
+        return "email"
+    
+    # Check for phone
+    phone_pattern = r'^[\d\s\-\+\(\)]{8,}$'
+    if all(re.match(phone_pattern, str(v).replace(" ", "")) for v in sample):
+        return "phone"
+    
+    # Check for URL
+    url_pattern = r'^https?://'
+    if all(re.match(url_pattern, str(v), re.I) for v in sample):
+        return "url"
+    
+    # Check if text is long (textarea candidate)
+    avg_length = sum(len(str(v)) for v in sample) / len(sample)
+    if avg_length > 100:
+        return "textarea"
+    
+    # Default to text
+    return "text"
+
+
+def parse_csv_and_detect_schema(csv_content: str, max_rows_to_analyze: int = 50):
+    """
+    Parse CSV content and auto-detect schema
+    Returns: (headers, detected_fields, sample_data)
+    """
+    lines = csv_content.strip().split('\n')
+    if len(lines) < 2:
+        raise ValueError("CSV must have at least 2 lines (header + data)")
+    
+    reader = csv.reader(io.StringIO(csv_content))
+    rows = list(reader)
+    
+    headers = [h.strip().lower().replace(" ", "_") for h in rows[0]]
+    data_rows = rows[1:max_rows_to_analyze + 1]
+    
+    if not headers:
+        raise ValueError("CSV headers are empty")
+    
+    # Transpose data to get values per column
+    columns = {}
+    for i, header in enumerate(headers):
+        columns[header] = [row[i] if i < len(row) else "" for row in data_rows]
+    
+    # Detect field types
+    detected_fields = []
+    for header in headers:
+        values = columns[header]
+        field_type = detect_field_type(values)
+        
+        detected_fields.append({
+            "field_name": header,
+            "field_type": field_type,
+            "required": False,  # User can change this
+            "unique": False,
+            "validation": {},
+            "dropdown_options": []
+        })
+    
+    # Prepare sample data (first 5 rows)
+    sample_data = []
+    for row in data_rows[:5]:
+        item = {}
+        for i, header in enumerate(headers):
+            item[header] = row[i] if i < len(row) else ""
+        sample_data.append(item)
+    
+    return headers, detected_fields, sample_data
+
+
 async def create_default_schema_for_agent(agent_id: str, business_type: str):
     """Create default schema for an agent based on its business type"""
     if business_type not in DEFAULT_SCHEMAS:
@@ -2395,6 +2513,139 @@ async def delete_collection_item(agent_id: str, collection_name: str, item_id: s
         raise HTTPException(status_code=404, detail="Item not found")
     
     return {"message": "Item deleted successfully"}
+
+
+# ─── CSV Auto-Detection & Bulk Upload ───
+
+@api_router.post("/agents/{agent_id}/collections/{collection_name}/detect-csv")
+async def detect_csv_schema(agent_id: str, collection_name: str, request: Request):
+    """
+    Upload CSV and auto-detect schema
+    Returns detected fields and sample data for user confirmation
+    """
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    
+    # Verify agent ownership
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id}, {"_id": 0})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    
+    body = await request.json()
+    csv_content = body.get("csv_content", "")
+    
+    if not csv_content:
+        raise HTTPException(status_code=400, detail="csv_content is required")
+    
+    try:
+        headers, detected_fields, sample_data = parse_csv_and_detect_schema(csv_content)
+        
+        return {
+            "headers": headers,
+            "detected_fields": detected_fields,
+            "sample_data": sample_data,
+            "total_rows": len(csv_content.strip().split('\n')) - 1  # Exclude header
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to parse CSV: {str(e)}")
+
+
+@api_router.post("/agents/{agent_id}/collections/{collection_name}/bulk-upload")
+async def bulk_upload_csv(agent_id: str, collection_name: str, request: Request):
+    """
+    Bulk upload items from CSV
+    Replaces ALL existing data in the collection
+    """
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    
+    # Verify agent ownership
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id}, {"_id": 0})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    
+    # Verify schema exists
+    schema = await db.agent_schemas.find_one(
+        {"agent_id": agent_id, "collection_name": collection_name},
+        {"_id": 0}
+    )
+    if not schema:
+        raise HTTPException(status_code=404, detail="Schema not found")
+    
+    body = await request.json()
+    csv_content = body.get("csv_content", "")
+    replace_existing = body.get("replace_existing", True)
+    
+    if not csv_content:
+        raise HTTPException(status_code=400, detail="csv_content is required")
+    
+    try:
+        # Parse CSV
+        reader = csv.DictReader(io.StringIO(csv_content))
+        rows = list(reader)
+        
+        if not rows:
+            raise HTTPException(status_code=400, detail="CSV has no data rows")
+        
+        # Delete existing data if replace mode
+        if replace_existing:
+            await db.agent_collections.delete_many({
+                "agent_id": agent_id,
+                "collection_name": collection_name
+            })
+        
+        # Prepare items for bulk insert
+        now = datetime.now(timezone.utc).isoformat()
+        items_to_insert = []
+        
+        for row in rows:
+            # Clean field names (convert to lowercase with underscores)
+            cleaned_data = {}
+            for key, value in row.items():
+                clean_key = key.strip().lower().replace(" ", "_")
+                
+                # Type conversion based on schema
+                field_def = next((f for f in schema["fields"] if f["field_name"] == clean_key), None)
+                if field_def:
+                    field_type = field_def["field_type"]
+                    
+                    # Convert value based on type
+                    if field_type == "number":
+                        try:
+                            cleaned_data[clean_key] = float(value.replace(",", "")) if value else 0
+                        except:
+                            cleaned_data[clean_key] = 0
+                    elif field_type == "checkbox":
+                        cleaned_data[clean_key] = value.lower() in ["yes", "true", "1", "y"]
+                    elif field_type == "date":
+                        cleaned_data[clean_key] = value  # Keep as string for now
+                    else:
+                        cleaned_data[clean_key] = value
+                else:
+                    cleaned_data[clean_key] = value
+            
+            item_doc = {
+                "agent_id": agent_id,
+                "collection_name": collection_name,
+                "item_id": f"item_{uuid.uuid4().hex[:12]}",
+                "data": cleaned_data,
+                "created_at": now,
+                "updated_at": now
+            }
+            items_to_insert.append(item_doc)
+        
+        # Bulk insert
+        if items_to_insert:
+            await db.agent_collections.insert_many(items_to_insert)
+        
+        return {
+            "message": f"Successfully uploaded {len(items_to_insert)} items",
+            "items_count": len(items_to_insert),
+            "replaced_existing": replace_existing
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to upload CSV: {str(e)}")
 
 
 # ─── Output: Leads ───

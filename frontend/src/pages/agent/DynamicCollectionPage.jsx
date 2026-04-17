@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Plus, Pencil, Trash2, Loader2, Search, Grid, List, AlertCircle } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Search, Grid, List, AlertCircle, Upload, Download } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import DynamicFormField from "@/components/DynamicFormField";
+import CSVUploadDialog from "@/components/CSVUploadDialog";
 import axios from "axios";
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -17,6 +18,7 @@ export default function DynamicCollectionPage() {
 
   // Dialog state
   const [formOpen, setFormOpen] = useState(false);
+  const [csvDialogOpen, setCsvDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [formData, setFormData] = useState({});
   const [formErrors, setFormErrors] = useState({});
@@ -249,6 +251,16 @@ export default function DynamicCollectionPage() {
               </button>
             </div>
 
+            {/* CSV Upload */}
+            <button
+              onClick={() => setCsvDialogOpen(true)}
+              className="h-10 px-4 border border-[#E7E5E4] bg-white text-[#0C0A09] rounded-lg text-sm font-medium hover:bg-[#FAFAFA] flex items-center gap-2"
+            >
+              <Upload className="w-4 h-4" />
+              CSV Upload
+            </button>
+
+            {/* Add Item */}
             <button
               onClick={openCreateDialog}
               className="h-10 px-4 bg-[#0C0A09] text-white rounded-lg text-sm font-medium hover:bg-[#1C1917] flex items-center gap-2"
@@ -327,6 +339,15 @@ export default function DynamicCollectionPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* CSV Upload Dialog */}
+      <CSVUploadDialog
+        open={csvDialogOpen}
+        onClose={() => setCsvDialogOpen(false)}
+        agentId={agentId}
+        collectionName={schema.collection_name}
+        onSuccess={fetchData}
+      />
     </div>
   );
 }
