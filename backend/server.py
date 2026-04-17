@@ -272,7 +272,7 @@ def detect_field_type(values):
         try:
             float(v.replace(",", ""))  # Handle 1,000 format
             number_count += 1
-        except:
+        except (ValueError, TypeError, AttributeError):
             pass
     if number_count == len(sample):
         return "number"
@@ -780,7 +780,7 @@ async def create_agent(input_data: CreateAgentInput, request: Request):
         "status": "active",
         "response_tone": "friendly",
         "response_language": "english",
-        "greeting_message": f"Hello! Welcome to our business. How can I help you?",
+        "greeting_message": "Hello! Welcome to our business. How can I help you?",
         "fallback_message": "I'm not sure about that. Let me connect you with our team.",
         "channels": [],
         "messages_count": 0,
@@ -1172,8 +1172,7 @@ async def send_message(agent_id: str, conv_id: str, input_data: MessageInput, re
 
 @api_router.patch("/agents/{agent_id}/conversations/{conv_id}")
 async def update_conversation(agent_id: str, conv_id: str, request: Request):
-    user = await get_current_user(request)
-    user_id = user.get("user_id") or str(user.get("_id", ""))
+    _ = await get_current_user(request)  # Verify auth but don't use user_id yet
     body = await request.json()
     updates = {}
     for key in ["ai_enabled", "is_muted", "is_blocked"]:
@@ -1654,7 +1653,7 @@ async def test_agent_chat(agent_id: str, request: Request):
         if biz_info and biz_info.get("business_hours"):
             hrs = biz_info["business_hours"]
             open_days = [f"{d}: {h.get('open','09:00')}-{h.get('close','18:00')}" for d, h in hrs.items()]
-            return {"response": f"Our business hours are:\n" + "\n".join(open_days), "source": "Business Info"}
+            return {"response": "Our business hours are:\n" + "\n".join(open_days), "source": "Business Info"}
     return {"response": agent.get("fallback_message", "I'm not sure about that. Let me connect you with our team."), "source": "Fallback"}
 
 
@@ -2777,16 +2776,16 @@ async def delete_collection_item(agent_id: str, collection_name: str, item_id: s
                             file_path = UPLOAD_DIR / filename
                             if file_path.exists():
                                 file_path.unlink()
-                        except:
-                            pass  # Continue even if image deletion fails
+                        except (OSError, IOError, ValueError) as e:
+                            print(f"Failed to delete image file: {e}")
             elif isinstance(field_value, str) and "/uploads/images/" in field_value:
                 try:
                     filename = field_value.split("/")[-1]
                     file_path = UPLOAD_DIR / filename
                     if file_path.exists():
                         file_path.unlink()
-                except:
-                    pass
+                except (OSError, IOError, ValueError) as e:
+                    print(f"Failed to delete image file: {e}")
     
     # Delete item from database
     await db.agent_collections.delete_one(
@@ -2956,7 +2955,7 @@ async def bulk_upload_csv(agent_id: str, collection_name: str, request: Request)
                     if field_type == "number":
                         try:
                             cleaned_data[clean_key] = float(value.replace(",", "")) if value else 0
-                        except:
+                        except (ValueError, TypeError, AttributeError):
                             cleaned_data[clean_key] = 0
                     elif field_type == "checkbox":
                         cleaned_data[clean_key] = value.lower() in ["yes", "true", "1", "y"]
@@ -3073,8 +3072,7 @@ async def list_customer_tickets(agent_id: str, request: Request):
 
 @api_router.patch("/agents/{agent_id}/customer-tickets/{ticket_id}/status")
 async def update_customer_ticket_status(agent_id: str, ticket_id: str, request: Request):
-    user = await get_current_user(request)
-    user_id = user.get("user_id") or str(user.get("_id", ""))
+    _ = await get_current_user(request)  # Verify auth but don't use user_id yet
     body = await request.json()
     new_status = body.get("status", "")
     valid = ["open", "in_progress", "resolved", "closed"]

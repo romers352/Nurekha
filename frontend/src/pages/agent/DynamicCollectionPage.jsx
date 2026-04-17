@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useMemo, useCallback } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   Plus, Pencil, Trash2, Loader2, Search, Grid, List, AlertCircle,
@@ -7,77 +7,36 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import DynamicFormField from "@/components/DynamicFormField";
 import CSVUploadDialog from "@/components/CSVUploadDialog";
-import axios from "axios";
+import { useCollectionData } from "@/hooks/useCollectionData";
+import { useFilterSystem } from "@/hooks/useFilterSystem";
+import { useColumnVisibility } from "@/hooks/useColumnVisibility";
+import { useCRUDOperations } from "@/hooks/useCRUDOperations";
 
-const API = process.env.REACT_APP_BACKEND_URL;
-
+// Field type constants for filtering
 const TEXT_TYPES = ["text", "textarea", "email", "phone", "url"];
 
 export default function DynamicCollectionPage() {
   const { agentId, collectionName } = useParams();
   const navigate = useNavigate();
-  const [schema, setSchema] = useState(null);
-  const [allSchemas, setAllSchemas] = useState([]);
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+
+  // Custom hooks for data, filtering, columns, and CRUD
+  const { schema, allSchemas, items, loading, fetchData } = useCollectionData(agentId, collectionName);
+  const { search, setSearch, activeFilters, setActiveFilters, filteredItems, activeFilterCount, clearAllFilters } = useFilterSystem(items, schema);
+  const { visibleColumns, toggleColumn, resetColumnsDefault, showAllColumns } = useColumnVisibility(schema, agentId);
+  const { 
+    formOpen, setFormOpen, editingItem, formData, formErrors, saving,
+    openCreateDialog, openEditDialog, handleSave, handleDelete, updateFormField 
+  } = useCRUDOperations(schema, agentId, fetchData);
+
+  // Local UI state
   const [view, setView] = useState("table");
   const [filterOpen, setFilterOpen] = useState(false);
-  const [activeFilters, setActiveFilters] = useState({}); // { field_name: {...} }
   const [switcherOpen, setSwitcherOpen] = useState(false);
-  const switcherRef = useRef(null);
-
-  // Column visibility (for table view) — persisted in localStorage
-  const [visibleColumns, setVisibleColumns] = useState(null); // null until schema loaded
   const [columnsMenuOpen, setColumnsMenuOpen] = useState(false);
-  const columnsMenuRef = useRef(null);
-
-  // Dialog state
-  const [formOpen, setFormOpen] = useState(false);
   const [csvDialogOpen, setCsvDialogOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState(null);
-  const [formData, setFormData] = useState({});
-  const [formErrors, setFormErrors] = useState({});
-  const [saving, setSaving] = useState(false);
-
-  // Fetch schemas and items
-  const fetchData = useCallback(async () => {
-    try {
-      // Get agent's schemas
-      const schemasRes = await axios.get(`${API}/api/agents/${agentId}/schemas`, {
-        withCredentials: true,
-      });
-
-      setAllSchemas(schemasRes.data || []);
-
-      if (schemasRes.data.length === 0) {
-        setLoading(false);
-        return;
-      }
-
-      // Find schema by collection name (if provided) or use first
-      let targetSchema;
-      if (collectionName) {
-        targetSchema = schemasRes.data.find(s => s.collection_name === collectionName);
-      }
-      if (!targetSchema) {
-        targetSchema = schemasRes.data[0];
-      }
-      
-      setSchema(targetSchema);
-
-      // Fetch items for this collection
-      const itemsRes = await axios.get(
-        `${API}/api/agents/${agentId}/collections/${targetSchema.collection_name}/items`,
-        { withCredentials: true }
-      );
-      setItems(itemsRes.data);
-    } catch (err) {
-      console.error("Failed to fetch data", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [agentId, collectionName]);
+  
+  const switcherRef = useRef(null);
+  const columnsMenuRef = useRef(null);
 
   useEffect(() => {
     fetchData();
@@ -85,40 +44,7 @@ export default function DynamicCollectionPage() {
     setSearch("");
     setActiveFilters({});
     setFilterOpen(false);
-  }, [agentId, collectionName, fetchData]);
-
-  // NOTE: localStorage here stores ONLY column-visibility preferences
-  // (list of non-sensitive schema field names, e.g. ["name","price","sku"]).
-  // No PII, tokens, or auth data is ever stored here. This is safe.
-  // Load visible columns from localStorage once schema is known
-  useEffect(() => {
-    if (!schema) return;
-    const storageKey = `cols:${agentId}:${schema.collection_name}`;
-    try {
-      const saved = localStorage.getItem(storageKey);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          // Only keep columns that still exist in schema
-          const validNames = new Set(schema.fields.map((f) => f.field_name));
-          const kept = parsed.filter((n) => validNames.has(n));
-          setVisibleColumns(kept.length ? kept : schema.fields.slice(0, 6).map((f) => f.field_name));
-          return;
-        }
-      }
-    } catch (e) { /* ignore */ }
-    // Default: first 6 columns
-    setVisibleColumns(schema.fields.slice(0, 6).map((f) => f.field_name));
-  }, [schema, agentId]);
-
-  // Persist visible columns
-  useEffect(() => {
-    if (!schema || !visibleColumns) return;
-    const storageKey = `cols:${agentId}:${schema.collection_name}`;
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(visibleColumns));
-    } catch (e) { /* ignore */ }
-  }, [visibleColumns, schema, agentId]);
+  }, [agentId, collectionName, fetchData, setSearch, setActiveFilters]);
 
   // Close switcher + columns menu on outside click
   useEffect(() => {
@@ -135,195 +61,16 @@ export default function DynamicCollectionPage() {
     navigate(`/agent/${agentId}/collection/${targetName}`);
   };
 
-  /* ───────── Filter logic ───────── */
-  const applyFilter = (item, fieldName, filter, fieldType) => {
-    const value = item.data?.[fieldName];
-    if (filter === undefined || filter === null) return true;
-
-    if (TEXT_TYPES.includes(fieldType)) {
-      if (!filter.text) return true;
-      return String(value ?? "").toLowerCase().includes(String(filter.text).toLowerCase());
-    }
-    if (fieldType === "number") {
-      const n = parseFloat(value);
-      if (filter.min !== undefined && filter.min !== "" && !isNaN(filter.min) && (isNaN(n) || n < parseFloat(filter.min))) return false;
-      if (filter.max !== undefined && filter.max !== "" && !isNaN(filter.max) && (isNaN(n) || n > parseFloat(filter.max))) return false;
-      return true;
-    }
-    if (fieldType === "date") {
-      if (!value) return !(filter.from || filter.to);
-      const d = new Date(value).getTime();
-      if (filter.from && d < new Date(filter.from).getTime()) return false;
-      if (filter.to && d > new Date(filter.to).getTime() + 24 * 60 * 60 * 1000 - 1) return false;
-      return true;
-    }
-    if (fieldType === "dropdown") {
-      if (!filter.value) return true;
-      return value === filter.value;
-    }
-    if (fieldType === "checkbox") {
-      if (!filter.value || filter.value === "any") return true;
-      if (filter.value === "yes") return value === true;
-      if (filter.value === "no") return !value;
-      return true;
-    }
-    if (fieldType === "image") {
-      if (!filter.value || filter.value === "any") return true;
-      const imgs = Array.isArray(value) ? value : value ? [value] : [];
-      if (filter.value === "has") return imgs.length > 0;
-      if (filter.value === "none") return imgs.length === 0;
-      return true;
-    }
-    return true;
-  };
-
-  const filteredItems = useMemo(() => {
-    return items.filter((item) => {
-      // Simple search across all string-ish values
-      if (search) {
-        const searchLower = search.toLowerCase();
-        const match = Object.values(item.data || {}).some((val) => {
-          if (val === null || val === undefined) return false;
-          if (Array.isArray(val)) return val.some((v) => String(v).toLowerCase().includes(searchLower));
-          return String(val).toLowerCase().includes(searchLower);
-        });
-        if (!match) return false;
-      }
-      // Advanced filters
-      if (schema && Object.keys(activeFilters).length > 0) {
-        for (const [fieldName, filter] of Object.entries(activeFilters)) {
-          const field = schema.fields.find((f) => f.field_name === fieldName);
-          if (!field) continue;
-          if (!applyFilter(item, fieldName, filter, field.field_type)) return false;
-        }
-      }
-      return true;
-    });
-  }, [items, search, activeFilters, schema]);
-
-  const activeFilterCount = useMemo(() => {
-    return Object.entries(activeFilters).filter(([, f]) => {
-      if (!f) return false;
-      if (f.text) return true;
-      if (f.value) return true;
-      if (f.min !== undefined && f.min !== "") return true;
-      if (f.max !== undefined && f.max !== "") return true;
-      if (f.from || f.to) return true;
-      return false;
-    }).length;
-  }, [activeFilters]);
-
   const updateFilter = (fieldName, patch) => {
     setActiveFilters((prev) => ({ ...prev, [fieldName]: { ...(prev[fieldName] || {}), ...patch } }));
   };
+
   const clearFilter = (fieldName) => {
     setActiveFilters((prev) => {
       const next = { ...prev };
       delete next[fieldName];
       return next;
     });
-  };
-  const clearAllFilters = () => setActiveFilters({});
-
-  /* ───────── CRUD handlers ───────── */
-  const openCreateDialog = () => {
-    setEditingItem(null);
-    setFormData({});
-    setFormErrors({});
-    setFormOpen(true);
-  };
-  const openEditDialog = (item) => {
-    setEditingItem(item);
-    setFormData(item.data || {});
-    setFormErrors({});
-    setFormOpen(true);
-  };
-
-  const validateForm = () => {
-    const errors = {};
-    schema.fields.forEach((field) => {
-      const value = formData[field.field_name];
-      if (field.required && (!value || (typeof value === "string" && !value.trim()))) {
-        errors[field.field_name] = "This field is required";
-      }
-      if (value) {
-        if (field.field_type === "number") {
-          const num = parseFloat(value);
-          if (field.validation?.min !== undefined && num < field.validation.min)
-            errors[field.field_name] = `Minimum value is ${field.validation.min}`;
-          if (field.validation?.max !== undefined && num > field.validation.max)
-            errors[field.field_name] = `Maximum value is ${field.validation.max}`;
-        }
-        if (TEXT_TYPES.includes(field.field_type)) {
-          const len = String(value).length;
-          if (field.validation?.min_length && len < field.validation.min_length)
-            errors[field.field_name] = `Minimum length is ${field.validation.min_length}`;
-          if (field.validation?.max_length && len > field.validation.max_length)
-            errors[field.field_name] = `Maximum length is ${field.validation.max_length}`;
-        }
-      }
-    });
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
-  const handleSave = async () => {
-    if (!validateForm()) return;
-    setSaving(true);
-    try {
-      if (editingItem) {
-        await axios.put(
-          `${API}/api/agents/${agentId}/collections/${schema.collection_name}/items/${editingItem.item_id}`,
-          { data: formData },
-          { withCredentials: true }
-        );
-      } else {
-        await axios.post(
-          `${API}/api/agents/${agentId}/collections/${schema.collection_name}/items`,
-          { data: formData },
-          { withCredentials: true }
-        );
-      }
-      setFormOpen(false);
-      fetchData();
-    } catch (err) {
-      alert(err.response?.data?.detail || "Failed to save item");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDelete = async (itemId) => {
-    if (!confirm("Delete this item? This cannot be undone.")) return;
-    try {
-      await axios.delete(
-        `${API}/api/agents/${agentId}/collections/${schema.collection_name}/items/${itemId}`,
-        { withCredentials: true }
-      );
-      fetchData();
-    } catch (err) {
-      alert(err.response?.data?.detail || "Failed to delete item");
-    }
-  };
-
-  const updateFormField = (fieldName, value) => {
-    setFormData((prev) => ({ ...prev, [fieldName]: value }));
-    if (formErrors[fieldName]) setFormErrors((prev) => ({ ...prev, [fieldName]: null }));
-  };
-
-  /* ───────── Column visibility ───────── */
-  const toggleColumn = (fieldName) => {
-    setVisibleColumns((prev) => {
-      if (!prev) return prev;
-      if (prev.includes(fieldName)) return prev.filter((n) => n !== fieldName);
-      return [...prev, fieldName];
-    });
-  };
-  const resetColumnsDefault = () => {
-    if (schema) setVisibleColumns(schema.fields.slice(0, 6).map((f) => f.field_name));
-  };
-  const showAllColumns = () => {
-    if (schema) setVisibleColumns(schema.fields.map((f) => f.field_name));
   };
 
   if (loading) {
