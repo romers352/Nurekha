@@ -44,6 +44,238 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 logger = logging.getLogger(__name__)
 
 
+# ─── Default Schemas for Business Types ───
+DEFAULT_SCHEMAS = {
+    "ecommerce": {
+        "collection_name": "products",
+        "display_name": "Products",
+        "fields": [
+            {"field_name": "product_name", "field_type": "text", "required": True, "unique": False, "validation": {"max_length": 200}},
+            {"field_name": "sku", "field_type": "text", "required": True, "unique": True, "validation": {}},
+            {"field_name": "description", "field_type": "textarea", "required": False, "unique": False, "validation": {}},
+            {"field_name": "category", "field_type": "dropdown", "required": False, "unique": False, "dropdown_options": ["Electronics", "Clothing", "Food", "Home & Garden", "Sports", "Books", "Other"], "validation": {}},
+            {"field_name": "brand", "field_type": "text", "required": False, "unique": False, "validation": {}},
+            {"field_name": "price", "field_type": "number", "required": True, "unique": False, "validation": {"min": 0}},
+            {"field_name": "discount_price", "field_type": "number", "required": False, "unique": False, "validation": {"min": 0}},
+            {"field_name": "stock_quantity", "field_type": "number", "required": True, "unique": False, "validation": {"min": 0}},
+            {"field_name": "in_stock", "field_type": "checkbox", "required": False, "unique": False, "validation": {}},
+            {"field_name": "images", "field_type": "image", "required": False, "unique": False, "validation": {"max_count": 6}},
+            {"field_name": "product_url", "field_type": "url", "required": False, "unique": False, "validation": {}},
+        ]
+    },
+    "hotel": {
+        "collection_name": "rooms",
+        "display_name": "Rooms",
+        "fields": [
+            {"field_name": "room_type", "field_type": "dropdown", "required": True, "unique": False, "dropdown_options": ["Standard", "Deluxe", "Suite", "Presidential"], "validation": {}},
+            {"field_name": "room_number", "field_type": "text", "required": False, "unique": True, "validation": {}},
+            {"field_name": "price_per_night", "field_type": "number", "required": True, "unique": False, "validation": {"min": 0}},
+            {"field_name": "max_occupancy", "field_type": "number", "required": True, "unique": False, "validation": {"min": 1, "max": 10}},
+            {"field_name": "available_rooms", "field_type": "number", "required": True, "unique": False, "validation": {"min": 0}},
+            {"field_name": "amenities", "field_type": "textarea", "required": False, "unique": False, "validation": {}},
+            {"field_name": "description", "field_type": "textarea", "required": False, "unique": False, "validation": {}},
+            {"field_name": "images", "field_type": "image", "required": False, "unique": False, "validation": {"max_count": 6}},
+            {"field_name": "availability_status", "field_type": "dropdown", "required": False, "unique": False, "dropdown_options": ["available", "booked", "maintenance"], "validation": {}},
+        ]
+    },
+    "restaurant": {
+        "collection_name": "menu_items",
+        "display_name": "Menu Items",
+        "fields": [
+            {"field_name": "item_name", "field_type": "text", "required": True, "unique": False, "validation": {"max_length": 200}},
+            {"field_name": "category", "field_type": "dropdown", "required": True, "unique": False, "dropdown_options": ["Appetizer", "Main Course", "Dessert", "Beverages", "Specials"], "validation": {}},
+            {"field_name": "price", "field_type": "number", "required": True, "unique": False, "validation": {"min": 0}},
+            {"field_name": "description", "field_type": "textarea", "required": False, "unique": False, "validation": {}},
+            {"field_name": "ingredients", "field_type": "textarea", "required": False, "unique": False, "validation": {}},
+            {"field_name": "dietary_info", "field_type": "dropdown", "required": False, "unique": False, "dropdown_options": ["Vegetarian", "Vegan", "Gluten-Free", "Dairy-Free", "None"], "validation": {}},
+            {"field_name": "spice_level", "field_type": "dropdown", "required": False, "unique": False, "dropdown_options": ["Mild", "Medium", "Spicy", "Extra Spicy"], "validation": {}},
+            {"field_name": "available", "field_type": "checkbox", "required": False, "unique": False, "validation": {}},
+            {"field_name": "images", "field_type": "image", "required": False, "unique": False, "validation": {"max_count": 3}},
+        ]
+    },
+    "real_estate": {
+        "collection_name": "properties",
+        "display_name": "Properties",
+        "fields": [
+            {"field_name": "title", "field_type": "text", "required": True, "unique": False, "validation": {"max_length": 200}},
+            {"field_name": "property_type", "field_type": "dropdown", "required": True, "unique": False, "dropdown_options": ["House", "Apartment", "Villa", "Land", "Commercial", "Office"], "validation": {}},
+            {"field_name": "listing_type", "field_type": "dropdown", "required": True, "unique": False, "dropdown_options": ["sale", "rent"], "validation": {}},
+            {"field_name": "price", "field_type": "number", "required": True, "unique": False, "validation": {"min": 0}},
+            {"field_name": "location", "field_type": "text", "required": True, "unique": False, "validation": {}},
+            {"field_name": "bedrooms", "field_type": "number", "required": False, "unique": False, "validation": {"min": 0}},
+            {"field_name": "bathrooms", "field_type": "number", "required": False, "unique": False, "validation": {"min": 0}},
+            {"field_name": "area_sqft", "field_type": "number", "required": False, "unique": False, "validation": {"min": 0}},
+            {"field_name": "description", "field_type": "textarea", "required": False, "unique": False, "validation": {}},
+            {"field_name": "images", "field_type": "image", "required": False, "unique": False, "validation": {"max_count": 6}},
+            {"field_name": "status", "field_type": "dropdown", "required": False, "unique": False, "dropdown_options": ["available", "sold", "rented", "pending"], "validation": {}},
+        ]
+    },
+    "isp": {
+        "collection_name": "plans",
+        "display_name": "Internet Plans",
+        "fields": [
+            {"field_name": "plan_name", "field_type": "text", "required": True, "unique": True, "validation": {"max_length": 100}},
+            {"field_name": "speed", "field_type": "text", "required": True, "unique": False, "validation": {}},
+            {"field_name": "price", "field_type": "number", "required": True, "unique": False, "validation": {"min": 0}},
+            {"field_name": "data_limit", "field_type": "text", "required": False, "unique": False, "validation": {}},
+            {"field_name": "installation_fee", "field_type": "number", "required": False, "unique": False, "validation": {"min": 0}},
+            {"field_name": "coverage_area", "field_type": "text", "required": False, "unique": False, "validation": {}},
+            {"field_name": "features", "field_type": "textarea", "required": False, "unique": False, "validation": {}},
+            {"field_name": "availability", "field_type": "dropdown", "required": False, "unique": False, "dropdown_options": ["available", "limited", "unavailable"], "validation": {}},
+        ]
+    },
+    "telecom": {
+        "collection_name": "plans",
+        "display_name": "Telecom Plans",
+        "fields": [
+            {"field_name": "plan_name", "field_type": "text", "required": True, "unique": True, "validation": {"max_length": 100}},
+            {"field_name": "data", "field_type": "text", "required": True, "unique": False, "validation": {}},
+            {"field_name": "calls", "field_type": "text", "required": True, "unique": False, "validation": {}},
+            {"field_name": "sms", "field_type": "text", "required": False, "unique": False, "validation": {}},
+            {"field_name": "validity", "field_type": "text", "required": True, "unique": False, "validation": {}},
+            {"field_name": "price", "field_type": "number", "required": True, "unique": False, "validation": {"min": 0}},
+            {"field_name": "features", "field_type": "textarea", "required": False, "unique": False, "validation": {}},
+        ]
+    },
+    "vehicle": {
+        "collection_name": "vehicles",
+        "display_name": "Vehicles",
+        "fields": [
+            {"field_name": "vehicle_name", "field_type": "text", "required": True, "unique": False, "validation": {"max_length": 200}},
+            {"field_name": "brand", "field_type": "text", "required": True, "unique": False, "validation": {}},
+            {"field_name": "model", "field_type": "text", "required": True, "unique": False, "validation": {}},
+            {"field_name": "year", "field_type": "number", "required": False, "unique": False, "validation": {"min": 1900, "max": 2030}},
+            {"field_name": "price", "field_type": "number", "required": True, "unique": False, "validation": {"min": 0}},
+            {"field_name": "mileage", "field_type": "text", "required": False, "unique": False, "validation": {}},
+            {"field_name": "fuel_type", "field_type": "dropdown", "required": False, "unique": False, "dropdown_options": ["petrol", "diesel", "electric", "hybrid", "CNG"], "validation": {}},
+            {"field_name": "transmission", "field_type": "dropdown", "required": False, "unique": False, "dropdown_options": ["manual", "automatic", "semi-automatic"], "validation": {}},
+            {"field_name": "condition", "field_type": "dropdown", "required": False, "unique": False, "dropdown_options": ["new", "used", "certified"], "validation": {}},
+            {"field_name": "description", "field_type": "textarea", "required": False, "unique": False, "validation": {}},
+            {"field_name": "images", "field_type": "image", "required": False, "unique": False, "validation": {"max_count": 6}},
+            {"field_name": "availability", "field_type": "dropdown", "required": False, "unique": False, "dropdown_options": ["available", "sold", "reserved"], "validation": {}},
+        ]
+    },
+    "finance": {
+        "collection_name": "products",
+        "display_name": "Financial Products",
+        "fields": [
+            {"field_name": "product_name", "field_type": "text", "required": True, "unique": False, "validation": {"max_length": 200}},
+            {"field_name": "product_type", "field_type": "dropdown", "required": True, "unique": False, "dropdown_options": ["loan", "insurance", "savings", "investment", "credit_card"], "validation": {}},
+            {"field_name": "interest_rate", "field_type": "number", "required": False, "unique": False, "validation": {"min": 0, "max": 100}},
+            {"field_name": "duration", "field_type": "text", "required": False, "unique": False, "validation": {}},
+            {"field_name": "min_amount", "field_type": "number", "required": False, "unique": False, "validation": {"min": 0}},
+            {"field_name": "max_amount", "field_type": "number", "required": False, "unique": False, "validation": {"min": 0}},
+            {"field_name": "eligibility", "field_type": "textarea", "required": False, "unique": False, "validation": {}},
+            {"field_name": "features", "field_type": "textarea", "required": False, "unique": False, "validation": {}},
+        ]
+    },
+    "events": {
+        "collection_name": "packages",
+        "display_name": "Event Packages",
+        "fields": [
+            {"field_name": "package_name", "field_type": "text", "required": True, "unique": False, "validation": {"max_length": 200}},
+            {"field_name": "event_type", "field_type": "dropdown", "required": False, "unique": False, "dropdown_options": ["Wedding", "Birthday", "Corporate", "Conference", "Party", "Other"], "validation": {}},
+            {"field_name": "services_included", "field_type": "textarea", "required": True, "unique": False, "validation": {}},
+            {"field_name": "price", "field_type": "number", "required": True, "unique": False, "validation": {"min": 0}},
+            {"field_name": "duration", "field_type": "text", "required": False, "unique": False, "validation": {}},
+            {"field_name": "max_guests", "field_type": "number", "required": False, "unique": False, "validation": {"min": 1}},
+            {"field_name": "availability_dates", "field_type": "text", "required": False, "unique": False, "validation": {}},
+            {"field_name": "images", "field_type": "image", "required": False, "unique": False, "validation": {"max_count": 6}},
+        ]
+    },
+    "education": {
+        "collection_name": "courses",
+        "display_name": "Courses",
+        "fields": [
+            {"field_name": "course_name", "field_type": "text", "required": True, "unique": False, "validation": {"max_length": 200}},
+            {"field_name": "category", "field_type": "dropdown", "required": False, "unique": False, "dropdown_options": ["Technology", "Business", "Arts", "Science", "Languages", "Other"], "validation": {}},
+            {"field_name": "duration", "field_type": "text", "required": True, "unique": False, "validation": {}},
+            {"field_name": "fees", "field_type": "number", "required": True, "unique": False, "validation": {"min": 0}},
+            {"field_name": "eligibility", "field_type": "text", "required": False, "unique": False, "validation": {}},
+            {"field_name": "mode", "field_type": "dropdown", "required": False, "unique": False, "dropdown_options": ["online", "offline", "hybrid"], "validation": {}},
+            {"field_name": "start_dates", "field_type": "text", "required": False, "unique": False, "validation": {}},
+            {"field_name": "instructor", "field_type": "text", "required": False, "unique": False, "validation": {}},
+            {"field_name": "description", "field_type": "textarea", "required": False, "unique": False, "validation": {}},
+        ]
+    },
+    "healthcare": {
+        "collection_name": "doctors",
+        "display_name": "Doctors / Services",
+        "fields": [
+            {"field_name": "doctor_name", "field_type": "text", "required": True, "unique": False, "validation": {"max_length": 200}},
+            {"field_name": "specialization", "field_type": "text", "required": True, "unique": False, "validation": {}},
+            {"field_name": "qualification", "field_type": "text", "required": False, "unique": False, "validation": {}},
+            {"field_name": "experience_years", "field_type": "number", "required": False, "unique": False, "validation": {"min": 0}},
+            {"field_name": "consultation_fee", "field_type": "number", "required": True, "unique": False, "validation": {"min": 0}},
+            {"field_name": "availability", "field_type": "text", "required": False, "unique": False, "validation": {}},
+            {"field_name": "location", "field_type": "text", "required": False, "unique": False, "validation": {}},
+            {"field_name": "phone", "field_type": "phone", "required": False, "unique": False, "validation": {}},
+            {"field_name": "email", "field_type": "email", "required": False, "unique": False, "validation": {}},
+        ]
+    },
+    "travel": {
+        "collection_name": "packages",
+        "display_name": "Travel Packages",
+        "fields": [
+            {"field_name": "package_name", "field_type": "text", "required": True, "unique": False, "validation": {"max_length": 200}},
+            {"field_name": "destination", "field_type": "text", "required": True, "unique": False, "validation": {}},
+            {"field_name": "duration_days", "field_type": "number", "required": True, "unique": False, "validation": {"min": 1}},
+            {"field_name": "price", "field_type": "number", "required": True, "unique": False, "validation": {"min": 0}},
+            {"field_name": "available_seats", "field_type": "number", "required": False, "unique": False, "validation": {"min": 0}},
+            {"field_name": "start_dates", "field_type": "text", "required": False, "unique": False, "validation": {}},
+            {"field_name": "inclusions", "field_type": "textarea", "required": False, "unique": False, "validation": {}},
+            {"field_name": "exclusions", "field_type": "textarea", "required": False, "unique": False, "validation": {}},
+            {"field_name": "images", "field_type": "image", "required": False, "unique": False, "validation": {"max_count": 6}},
+        ]
+    },
+    "service": {
+        "collection_name": "services",
+        "display_name": "Services",
+        "fields": [
+            {"field_name": "service_name", "field_type": "text", "required": True, "unique": False, "validation": {"max_length": 200}},
+            {"field_name": "category", "field_type": "dropdown", "required": False, "unique": False, "dropdown_options": ["Grooming", "Spa", "Repair", "Cleaning", "Consultation", "Other"], "validation": {}},
+            {"field_name": "price", "field_type": "number", "required": True, "unique": False, "validation": {"min": 0}},
+            {"field_name": "duration", "field_type": "text", "required": False, "unique": False, "validation": {}},
+            {"field_name": "staff", "field_type": "text", "required": False, "unique": False, "validation": {}},
+            {"field_name": "description", "field_type": "textarea", "required": False, "unique": False, "validation": {}},
+            {"field_name": "availability", "field_type": "dropdown", "required": False, "unique": False, "dropdown_options": ["available", "booked", "unavailable"], "validation": {}},
+        ]
+    }
+}
+
+
+async def create_default_schema_for_agent(agent_id: str, business_type: str):
+    """Create default schema for an agent based on its business type"""
+    if business_type not in DEFAULT_SCHEMAS:
+        return None
+    
+    schema_template = DEFAULT_SCHEMAS[business_type]
+    now = datetime.now(timezone.utc).isoformat()
+    
+    # Check if default schema already exists
+    existing = await db.agent_schemas.find_one({
+        "agent_id": agent_id,
+        "collection_name": schema_template["collection_name"]
+    })
+    
+    if existing:
+        return existing
+    
+    schema_doc = {
+        "agent_id": agent_id,
+        "collection_name": schema_template["collection_name"],
+        "display_name": schema_template["display_name"],
+        "fields": schema_template["fields"],
+        "is_default": True,
+        "created_at": now,
+        "updated_at": now
+    }
+    
+    await db.agent_schemas.insert_one(schema_doc)
+    schema_doc.pop("_id", None)
+    return schema_doc
+
+
 # ─── Helpers ───
 def get_jwt_secret():
     return os.environ["JWT_SECRET"]
@@ -429,6 +661,9 @@ async def create_agent(input_data: CreateAgentInput, request: Request):
     }
     await db.agents.insert_one(agent_doc)
     agent_doc.pop("_id", None)
+
+    # Create default schema for this business type
+    await create_default_schema_for_agent(agent_id, biz_type)
 
     # Create notification
     await db.notifications.insert_one({
@@ -1740,7 +1975,8 @@ async def get_business_types():
 
 @api_router.get("/business-types/{biz_type}/schema")
 async def get_business_type_schema(biz_type: str):
-    schema = get_schema(biz_type)
+    from schemas import get_schema as get_biz_schema
+    schema = get_biz_schema(biz_type)
     if not schema:
         raise HTTPException(status_code=404, detail="Unknown business type")
     return schema
@@ -1923,7 +2159,7 @@ async def get_agent_schemas(agent_id: str, request: Request):
 
 
 @api_router.get("/agents/{agent_id}/schemas/{collection_name}")
-async def get_schema(agent_id: str, collection_name: str, request: Request):
+async def get_agent_schema(agent_id: str, collection_name: str, request: Request):
     """Get specific schema for a collection"""
     user = await get_current_user(request)
     user_id = user.get("user_id") or str(user.get("_id", ""))
@@ -1941,6 +2177,26 @@ async def get_schema(agent_id: str, collection_name: str, request: Request):
     if not schema:
         raise HTTPException(status_code=404, detail="Schema not found")
     
+    return schema
+
+
+@api_router.post("/agents/{agent_id}/schemas/initialize-default")
+async def initialize_default_schema(agent_id: str, request: Request):
+    """Initialize or reset to default schema for an agent's business type"""
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    
+    # Verify agent ownership
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id}, {"_id": 0})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    
+    business_type = agent.get("business_type", "")
+    
+    if business_type not in DEFAULT_SCHEMAS:
+        raise HTTPException(status_code=400, detail=f"No default schema available for business type '{business_type}'")
+    
+    schema = await create_default_schema_for_agent(agent_id, business_type)
     return schema
 
 
