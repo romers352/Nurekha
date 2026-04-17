@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
-import { LayoutDashboard, Plug, Brain, MessageSquare, Settings, ChevronLeft, Menu, X, ChevronDown, FileText, BookOpen } from "lucide-react";
+import { LayoutDashboard, Plug, Brain, MessageSquare, Settings, ChevronLeft, Menu, X, ChevronDown, FileText, BookOpen, Database } from "lucide-react";
 import { getBizConfig, getBizLabel } from "@/config/businessTypes";
 import axios from "axios";
 
@@ -31,6 +31,7 @@ export default function AgentMobileNav() {
       href: `/agent/${agentId}/train`,
       isExpandable: true,
       children: [
+        { icon: Database, label: "Schema Builder", href: `/agent/${agentId}/schema-builder` },
         { icon: BookOpen, label: "FAQs", href: `/agent/${agentId}/faqs` },
         { icon: FileText, label: "Documents", href: `/agent/${agentId}/docs` },
         ...(bizConfig?.dataLabel ? [{ icon: bizConfig.dataIcon, label: bizConfig.dataLabel, href: `/agent/${agentId}/data` }] : []),

@@ -1904,6 +1904,243 @@ async def download_csv_template(agent_id: str, request: Request):
     )
 
 
+# ─── Dynamic Schema Management ───
+
+@api_router.get("/agents/{agent_id}/schemas")
+async def get_agent_schemas(agent_id: str, request: Request):
+    """Get all custom schemas for an agent"""
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    
+    # Verify agent ownership
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id}, {"_id": 0})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    
+    # Get all schemas for this agent
+    schemas = await db.agent_schemas.find({"agent_id": agent_id}, {"_id": 0}).to_list(100)
+    return schemas
+
+
+@api_router.get("/agents/{agent_id}/schemas/{collection_name}")
+async def get_schema(agent_id: str, collection_name: str, request: Request):
+    """Get specific schema for a collection"""
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    
+    # Verify agent ownership
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id}, {"_id": 0})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    
+    schema = await db.agent_schemas.find_one(
+        {"agent_id": agent_id, "collection_name": collection_name},
+        {"_id": 0}
+    )
+    
+    if not schema:
+        raise HTTPException(status_code=404, detail="Schema not found")
+    
+    return schema
+
+
+@api_router.post("/agents/{agent_id}/schemas")
+async def create_or_update_schema(agent_id: str, request: Request):
+    """Create or update a custom schema"""
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    
+    # Verify agent ownership
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id}, {"_id": 0})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    
+    body = await request.json()
+    collection_name = body.get("collection_name", "").strip().lower().replace(" ", "_")
+    fields = body.get("fields", [])
+    
+    if not collection_name:
+        raise HTTPException(status_code=400, detail="collection_name is required")
+    
+    if not fields or len(fields) == 0:
+        raise HTTPException(status_code=400, detail="At least one field is required")
+    
+    if len(fields) > 20:
+        raise HTTPException(status_code=400, detail="Maximum 20 fields allowed")
+    
+    # Validate field types
+    valid_types = ["text", "textarea", "number", "date", "dropdown", "checkbox", "image", "email", "phone", "url"]
+    for field in fields:
+        if field.get("field_type") not in valid_types:
+            raise HTTPException(status_code=400, detail=f"Invalid field_type: {field.get('field_type')}")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    
+    # Check if schema exists
+    existing = await db.agent_schemas.find_one({"agent_id": agent_id, "collection_name": collection_name})
+    
+    schema_doc = {
+        "agent_id": agent_id,
+        "collection_name": collection_name,
+        "display_name": body.get("display_name", collection_name.replace("_", " ").title()),
+        "fields": fields,
+        "updated_at": now
+    }
+    
+    if existing:
+        # Update existing schema
+        await db.agent_schemas.update_one(
+            {"agent_id": agent_id, "collection_name": collection_name},
+            {"$set": schema_doc}
+        )
+    else:
+        # Create new schema
+        schema_doc["created_at"] = now
+        await db.agent_schemas.insert_one(schema_doc)
+    
+    schema_doc.pop("_id", None)
+    return schema_doc
+
+
+@api_router.delete("/agents/{agent_id}/schemas/{collection_name}")
+async def delete_schema(agent_id: str, collection_name: str, request: Request):
+    """Delete a custom schema and all its data"""
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    
+    # Verify agent ownership
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id}, {"_id": 0})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    
+    # Delete schema
+    result = await db.agent_schemas.delete_one({"agent_id": agent_id, "collection_name": collection_name})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Schema not found")
+    
+    # Also delete all data for this collection
+    await db.agent_collections.delete_many({"agent_id": agent_id, "collection_name": collection_name})
+    
+    return {"message": "Schema and data deleted successfully"}
+
+
+# ─── Dynamic Collection Data CRUD ───
+
+@api_router.get("/agents/{agent_id}/collections/{collection_name}/items")
+async def get_collection_items(agent_id: str, collection_name: str, request: Request):
+    """Get all items in a collection"""
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    
+    # Verify agent ownership
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id}, {"_id": 0})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    
+    # Get items
+    items = await db.agent_collections.find(
+        {"agent_id": agent_id, "collection_name": collection_name},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(1000)
+    
+    return items
+
+
+@api_router.post("/agents/{agent_id}/collections/{collection_name}/items")
+async def create_collection_item(agent_id: str, collection_name: str, request: Request):
+    """Create a new item in a collection"""
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    
+    # Verify agent ownership
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id}, {"_id": 0})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    
+    # Verify schema exists
+    schema = await db.agent_schemas.find_one(
+        {"agent_id": agent_id, "collection_name": collection_name},
+        {"_id": 0}
+    )
+    if not schema:
+        raise HTTPException(status_code=404, detail="Schema not found for this collection")
+    
+    body = await request.json()
+    data = body.get("data", {})
+    
+    # Validate required fields
+    for field in schema.get("fields", []):
+        if field.get("required") and not data.get(field["field_name"]):
+            raise HTTPException(status_code=400, detail=f"Field '{field['field_name']}' is required")
+    
+    now = datetime.now(timezone.utc).isoformat()
+    item_id = f"item_{uuid.uuid4().hex[:12]}"
+    
+    item_doc = {
+        "agent_id": agent_id,
+        "collection_name": collection_name,
+        "item_id": item_id,
+        "data": data,
+        "created_at": now,
+        "updated_at": now
+    }
+    
+    await db.agent_collections.insert_one(item_doc)
+    item_doc.pop("_id", None)
+    return item_doc
+
+
+@api_router.put("/agents/{agent_id}/collections/{collection_name}/items/{item_id}")
+async def update_collection_item(agent_id: str, collection_name: str, item_id: str, request: Request):
+    """Update an existing item"""
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    
+    # Verify agent ownership
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id}, {"_id": 0})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    
+    body = await request.json()
+    data = body.get("data", {})
+    
+    result = await db.agent_collections.update_one(
+        {"agent_id": agent_id, "collection_name": collection_name, "item_id": item_id},
+        {"$set": {"data": data, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Item not found")
+    
+    updated = await db.agent_collections.find_one(
+        {"agent_id": agent_id, "collection_name": collection_name, "item_id": item_id},
+        {"_id": 0}
+    )
+    return updated
+
+
+@api_router.delete("/agents/{agent_id}/collections/{collection_name}/items/{item_id}")
+async def delete_collection_item(agent_id: str, collection_name: str, item_id: str, request: Request):
+    """Delete an item from a collection"""
+    user = await get_current_user(request)
+    user_id = user.get("user_id") or str(user.get("_id", ""))
+    
+    # Verify agent ownership
+    agent = await db.agents.find_one({"agent_id": agent_id, "client_id": user_id}, {"_id": 0})
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    
+    result = await db.agent_collections.delete_one(
+        {"agent_id": agent_id, "collection_name": collection_name, "item_id": item_id}
+    )
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Item not found")
+    
+    return {"message": "Item deleted successfully"}
+
+
 # ─── Output: Leads ───
 
 @api_router.post("/agents/{agent_id}/leads")

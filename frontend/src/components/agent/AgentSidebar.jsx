@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
-import { LayoutDashboard, Plug, Brain, MessageSquare, Settings, ChevronLeft, ChevronRight, ChevronDown, FileText, BookOpen } from "lucide-react";
+import { LayoutDashboard, Plug, Brain, MessageSquare, Settings, ChevronLeft, ChevronRight, ChevronDown, FileText, BookOpen, Database } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { getBizConfig, getBizLabel } from "@/config/businessTypes";
@@ -44,6 +44,7 @@ export default function AgentSidebar() {
   const isInTrainSection = location.pathname.includes('/train') || 
                           location.pathname.includes('/faqs') || 
                           location.pathname.includes('/docs') ||
+                          location.pathname.includes('/schema-builder') ||
                           location.pathname.includes('/data');
 
   // Auto-expand Train Agent if user is in that section
@@ -65,6 +66,7 @@ export default function AgentSidebar() {
       expanded: trainExpanded,
       onToggle: () => setTrainExpanded(!trainExpanded),
       children: [
+        { icon: Database, label: "Schema Builder", href: `/agent/${agentId}/schema-builder` },
         { icon: BookOpen, label: "FAQs", href: `/agent/${agentId}/faqs` },
         { icon: FileText, label: "Documents", href: `/agent/${agentId}/docs` },
         ...(bizConfig?.dataLabel ? [{ icon: bizConfig.dataIcon, label: bizConfig.dataLabel, href: `/agent/${agentId}/data` }] : []),
