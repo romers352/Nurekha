@@ -96,7 +96,7 @@ GET  /api/agents/{id}/business-data/csv-template → Download CSV template
 
 3. **Check API:**
    ```bash
-   API_URL=https://api-fixes-ui.preview.emergentagent.com
+   API_URL=https://agent-vault-7.preview.emergentagent.com
    curl -X GET "$API_URL/api/business-types"
    ```
 
