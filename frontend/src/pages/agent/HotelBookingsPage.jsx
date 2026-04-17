@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Plus, CalendarCheck, Search, Loader2 } from "lucide-react";
+import { Plus, CalendarCheck, Search, Loader2, Download } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { downloadCSV, filenameTimestamp } from "@/lib/csvExport";
 import axios from "axios";
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -65,6 +66,35 @@ export default function HotelBookingsPage() {
     return b.booking_status === filter;
   });
 
+  const handleExportCSV = () => {
+    const rows = filteredBookings.map(b => ({
+      booking_id: b.booking_id,
+      guest_name: b.guest_name || "",
+      guest_email: b.guest_email || "",
+      guest_phone: b.guest_phone || "",
+      room: getRoomName(b.room_id),
+      check_in: b.check_in || "",
+      check_out: b.check_out || "",
+      total_amount: b.total_amount ?? "",
+      status: b.booking_status || "",
+      notes: b.notes || "",
+      created_at: b.created_at ? new Date(b.created_at).toISOString() : "",
+    }));
+    downloadCSV(`bookings_${filenameTimestamp()}.csv`, rows, [
+      { key: "booking_id", header: "Booking ID" },
+      { key: "guest_name", header: "Guest" },
+      { key: "guest_email", header: "Email" },
+      { key: "guest_phone", header: "Phone" },
+      { key: "room", header: "Room" },
+      { key: "check_in", header: "Check-in" },
+      { key: "check_out", header: "Check-out" },
+      { key: "total_amount", header: "Total" },
+      { key: "status", header: "Status" },
+      { key: "notes", header: "Notes" },
+      { key: "created_at", header: "Created At" },
+    ]);
+  };
+
   return (
     <div className="p-6 lg:p-8 max-w-7xl" data-testid="hotel-bookings-page">
       <div className="flex items-center justify-between mb-6 pb-6 border-b border-[#E7E5E4]">
@@ -72,9 +102,19 @@ export default function HotelBookingsPage() {
           <h1 className="font-serif text-[28px] text-[#0C0A09]">Bookings</h1>
           <p className="text-sm text-[#57534E] mt-0.5">{bookings.length} total bookings</p>
         </div>
-        <button onClick={() => setDialogOpen(true)} data-testid="create-booking-btn" className="h-10 px-4 bg-[#0C0A09] text-white rounded-lg text-sm font-medium hover:bg-[#1C1917] transition-colors flex items-center gap-2">
-          <Plus className="w-4 h-4" /> New Booking
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleExportCSV}
+            disabled={bookings.length === 0}
+            data-testid="export-csv-btn"
+            className="h-10 px-4 border border-[#E7E5E4] bg-white text-[#0C0A09] rounded-lg text-sm font-medium hover:bg-[#FAFAFA] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            <Download className="w-4 h-4" /> Export CSV
+          </button>
+          <button onClick={() => setDialogOpen(true)} data-testid="create-booking-btn" className="h-10 px-4 bg-[#0C0A09] text-white rounded-lg text-sm font-medium hover:bg-[#1C1917] transition-colors flex items-center gap-2">
+            <Plus className="w-4 h-4" /> New Booking
+          </button>
+        </div>
       </div>
 
       {/* Filters */}

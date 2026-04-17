@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Plus, ClipboardList, Search, Loader2, Phone } from "lucide-react";
+import { Plus, ClipboardList, Search, Loader2, Phone, Download } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { downloadCSV, filenameTimestamp } from "@/lib/csvExport";
 import axios from "axios";
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -46,6 +47,29 @@ export default function CustomerTicketsPage() {
 
   const filtered = tickets.filter(t => !filter || t.status === filter);
 
+  const handleExportCSV = () => {
+    const rows = filtered.map(t => ({
+      ticket_id: t.ticket_id,
+      customer_name: t.customer_name,
+      phone: t.phone || "",
+      issue: t.issue || "",
+      category: t.category || "",
+      priority: t.priority || "",
+      status: t.status || "",
+      created_at: t.created_at ? new Date(t.created_at).toISOString() : "",
+    }));
+    downloadCSV(`tickets_${filenameTimestamp()}.csv`, rows, [
+      { key: "ticket_id", header: "Ticket ID" },
+      { key: "customer_name", header: "Customer" },
+      { key: "phone", header: "Phone" },
+      { key: "issue", header: "Issue" },
+      { key: "category", header: "Category" },
+      { key: "priority", header: "Priority" },
+      { key: "status", header: "Status" },
+      { key: "created_at", header: "Created At" },
+    ]);
+  };
+
   return (
     <div className="p-6 lg:p-8 max-w-7xl" data-testid="customer-tickets-page">
       <div className="flex items-center justify-between mb-6 pb-6 border-b border-[#E7E5E4]">
@@ -53,7 +77,17 @@ export default function CustomerTicketsPage() {
           <h1 className="font-serif text-[28px] text-[#0C0A09]">Customer Tickets</h1>
           <p className="text-sm text-[#57534E] mt-0.5">{tickets.length} total tickets</p>
         </div>
-        <button onClick={() => setDialogOpen(true)} data-testid="add-ticket-btn" className="h-10 px-4 bg-[#0C0A09] text-white rounded-lg text-sm font-medium hover:bg-[#1C1917] flex items-center gap-2"><Plus className="w-4 h-4" /> Add Ticket</button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleExportCSV}
+            disabled={tickets.length === 0}
+            data-testid="export-csv-btn"
+            className="h-10 px-4 border border-[#E7E5E4] bg-white text-[#0C0A09] rounded-lg text-sm font-medium hover:bg-[#FAFAFA] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            <Download className="w-4 h-4" /> Export CSV
+          </button>
+          <button onClick={() => setDialogOpen(true)} data-testid="add-ticket-btn" className="h-10 px-4 bg-[#0C0A09] text-white rounded-lg text-sm font-medium hover:bg-[#1C1917] flex items-center gap-2"><Plus className="w-4 h-4" /> Add Ticket</button>
+        </div>
       </div>
 
       <div className="flex items-center gap-2 mb-4 flex-wrap">

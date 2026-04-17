@@ -400,6 +400,8 @@ async def create_default_schema_for_agent(agent_id: str, business_type: str):
 
 # ─── Multi-Collection constants ───
 MAX_COLLECTIONS_PER_AGENT = 2
+MAX_FIELDS_PER_SCHEMA = 20
+DEFAULT_MAX_IMAGES = 6
 
 
 # ─── Helpers ───
@@ -2356,8 +2358,8 @@ async def create_or_update_schema(agent_id: str, request: Request):
     if not fields or len(fields) == 0:
         raise HTTPException(status_code=400, detail="At least one field is required")
     
-    if len(fields) > 20:
-        raise HTTPException(status_code=400, detail="Maximum 20 fields allowed")
+    if len(fields) > MAX_FIELDS_PER_SCHEMA:
+        raise HTTPException(status_code=400, detail=f"Maximum {MAX_FIELDS_PER_SCHEMA} fields allowed per collection")
     
     # Validate field types
     valid_types = ["text", "textarea", "number", "date", "dropdown", "checkbox", "image", "email", "phone", "url"]
@@ -2566,6 +2568,80 @@ async def delete_schema(agent_id: str, collection_name: str, request: Request):
 
 # ─── Dynamic Collection Data CRUD ───
 
+TEXT_VALIDATION_TYPES = {"text", "textarea", "email", "phone", "url"}
+
+
+async def validate_item_data(agent_id: str, collection_name: str, schema: dict, data: dict, exclude_item_id=None):
+    """Validate item data against its schema. Raises HTTPException on first failure.
+    
+    Checks: required, unique, number min/max, string min_length/max_length, image max_count.
+    """
+    errors = []
+    
+    for field in schema.get("fields", []):
+        fname = field.get("field_name")
+        ftype = field.get("field_type")
+        required = bool(field.get("required"))
+        is_unique = bool(field.get("unique"))
+        validation = field.get("validation") or {}
+        
+        value = data.get(fname)
+        is_empty = value is None or (isinstance(value, str) and not value.strip()) or (isinstance(value, list) and len(value) == 0)
+        
+        # 1) Required
+        if required and is_empty:
+            errors.append(f"Field '{fname}' is required")
+            continue
+        
+        if is_empty:
+            continue  # Skip other validations on empty non-required fields
+        
+        # 2) Number min/max
+        if ftype == "number":
+            try:
+                num = float(value)
+            except (TypeError, ValueError):
+                errors.append(f"Field '{fname}' must be a number")
+                continue
+            if "min" in validation and validation["min"] not in (None, "") and num < float(validation["min"]):
+                errors.append(f"Field '{fname}' must be >= {validation['min']}")
+            if "max" in validation and validation["max"] not in (None, "") and num > float(validation["max"]):
+                errors.append(f"Field '{fname}' must be <= {validation['max']}")
+        
+        # 3) String length
+        if ftype in TEXT_VALIDATION_TYPES:
+            s = str(value)
+            min_len = validation.get("min_length")
+            max_len = validation.get("max_length")
+            if min_len and len(s) < int(min_len):
+                errors.append(f"Field '{fname}' must be at least {min_len} characters")
+            if max_len and len(s) > int(max_len):
+                errors.append(f"Field '{fname}' must be at most {max_len} characters")
+        
+        # 4) Image count
+        if ftype == "image":
+            images = value if isinstance(value, list) else [value]
+            max_count = int(validation.get("max_count") or DEFAULT_MAX_IMAGES)
+            if len(images) > max_count:
+                errors.append(f"Field '{fname}' allows at most {max_count} images (got {len(images)})")
+        
+        # 5) Uniqueness
+        if is_unique and not is_empty:
+            query = {
+                "agent_id": agent_id,
+                "collection_name": collection_name,
+                f"data.{fname}": value,
+            }
+            if exclude_item_id:
+                query["item_id"] = {"$ne": exclude_item_id}
+            conflict = await db.agent_collections.find_one(query, {"item_id": 1, "_id": 0})
+            if conflict:
+                errors.append(f"Field '{fname}' must be unique (value '{value}' already exists)")
+    
+    if errors:
+        raise HTTPException(status_code=400, detail="; ".join(errors))
+
+
 @api_router.get("/agents/{agent_id}/collections/{collection_name}/items")
 async def get_collection_items(agent_id: str, collection_name: str, request: Request):
     """Get all items in a collection"""
@@ -2608,10 +2684,8 @@ async def create_collection_item(agent_id: str, collection_name: str, request: R
     body = await request.json()
     data = body.get("data", {})
     
-    # Validate required fields
-    for field in schema.get("fields", []):
-        if field.get("required") and not data.get(field["field_name"]):
-            raise HTTPException(status_code=400, detail=f"Field '{field['field_name']}' is required")
+    # Validate all fields (required, unique, min/max, image count)
+    await validate_item_data(agent_id, collection_name, schema, data, exclude_item_id=None)
     
     now = datetime.now(timezone.utc).isoformat()
     item_id = f"item_{uuid.uuid4().hex[:12]}"
@@ -2643,6 +2717,14 @@ async def update_collection_item(agent_id: str, collection_name: str, item_id: s
     
     body = await request.json()
     data = body.get("data", {})
+    
+    # Load schema for validation
+    schema = await db.agent_schemas.find_one(
+        {"agent_id": agent_id, "collection_name": collection_name},
+        {"_id": 0}
+    )
+    if schema:
+        await validate_item_data(agent_id, collection_name, schema, data, exclude_item_id=item_id)
     
     result = await db.agent_collections.update_one(
         {"agent_id": agent_id, "collection_name": collection_name, "item_id": item_id},

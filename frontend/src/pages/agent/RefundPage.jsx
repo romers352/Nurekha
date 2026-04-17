@@ -3,9 +3,10 @@ import { useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   RotateCcw, Search, Clock, CheckCircle, XCircle, DollarSign,
-  ArrowUpRight, AlertTriangle, Loader2, Filter, Package,
+  ArrowUpRight, AlertTriangle, Loader2, Filter, Package, Download,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { downloadCSV, filenameTimestamp } from "@/lib/csvExport";
 import axios from "axios";
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -90,6 +91,31 @@ export default function RefundPage() {
 
   const totalRefunded = refunds.reduce((sum, r) => sum + (r.refund_amount || 0), 0);
 
+  const handleExportCSV = () => {
+    const rows = refunds.map(r => ({
+      refund_id: r.refund_id || "",
+      order_id: r.order_id || "",
+      customer: r.end_user_name || r.customer_name || "",
+      refund_amount: r.refund_amount ?? "",
+      currency: r.currency || "NPR",
+      reason: r.reason || "",
+      status: r.status || r.refund_status || "",
+      processed_at: r.processed_at ? new Date(r.processed_at).toISOString() : "",
+      created_at: r.created_at ? new Date(r.created_at).toISOString() : "",
+    }));
+    downloadCSV(`refunds_${filenameTimestamp()}.csv`, rows, [
+      { key: "refund_id", header: "Refund ID" },
+      { key: "order_id", header: "Order ID" },
+      { key: "customer", header: "Customer" },
+      { key: "refund_amount", header: "Amount" },
+      { key: "currency", header: "Currency" },
+      { key: "reason", header: "Reason" },
+      { key: "status", header: "Status" },
+      { key: "processed_at", header: "Processed At" },
+      { key: "created_at", header: "Created At" },
+    ]);
+  };
+
   return (
     <div className="p-6 lg:p-8 max-w-7xl" data-testid="refund-page">
       {/* Header */}
@@ -98,6 +124,14 @@ export default function RefundPage() {
           <h1 className="font-serif text-[28px] text-[#0C0A09]">Refunds</h1>
           <p className="text-sm text-[#57534E] mt-0.5">Process and manage customer refunds.</p>
         </div>
+        <button
+          onClick={handleExportCSV}
+          disabled={refunds.length === 0}
+          data-testid="export-csv-btn"
+          className="h-10 px-4 border border-[#E7E5E4] bg-white text-[#0C0A09] rounded-lg text-sm font-medium hover:bg-[#FAFAFA] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+        >
+          <Download className="w-4 h-4" /> Export CSV
+        </button>
       </div>
 
       {/* Stats */}

@@ -3,9 +3,10 @@ import { useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ShoppingBag, Plus, Clock, CheckCircle, Truck, Package, XCircle,
-  ChevronDown, ArrowRight, Loader2, Search,
+  ChevronDown, ArrowRight, Loader2, Search, Download,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { downloadCSV, filenameTimestamp } from "@/lib/csvExport";
 import axios from "axios";
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -177,6 +178,35 @@ export default function AgentOrdersPage() {
 
   const statusCounts = orders.reduce((acc, o) => { acc[o.order_status] = (acc[o.order_status] || 0) + 1; return acc; }, {});
 
+  const handleExportCSV = () => {
+    const rows = filtered.map(o => ({
+      order_id: o.order_id,
+      customer: o.end_user_name || "",
+      phone: o.end_user_phone || "",
+      email: o.end_user_email || "",
+      total: o.total_amount ?? "",
+      currency: o.currency || "",
+      status: o.order_status || "",
+      items: Array.isArray(o.items) ? o.items.map(it => `${it.name || it.item_name || ""} x${it.quantity || 1}`).join(" | ") : "",
+      shipping_address: o.shipping_address ? (typeof o.shipping_address === "string" ? o.shipping_address : JSON.stringify(o.shipping_address)) : "",
+      notes: o.notes || "",
+      created_at: o.created_at ? new Date(o.created_at).toISOString() : "",
+    }));
+    downloadCSV(`orders_${filenameTimestamp()}.csv`, rows, [
+      { key: "order_id", header: "Order ID" },
+      { key: "customer", header: "Customer" },
+      { key: "phone", header: "Phone" },
+      { key: "email", header: "Email" },
+      { key: "total", header: "Total" },
+      { key: "currency", header: "Currency" },
+      { key: "status", header: "Status" },
+      { key: "items", header: "Items" },
+      { key: "shipping_address", header: "Shipping Address" },
+      { key: "notes", header: "Notes" },
+      { key: "created_at", header: "Created At" },
+    ]);
+  };
+
   return (
     <div className="p-6 lg:p-8 max-w-7xl" data-testid="agent-orders-page">
       <div className="flex items-center justify-between mb-6">
@@ -184,9 +214,19 @@ export default function AgentOrdersPage() {
           <h1 className="font-serif text-[28px] text-[#0C0A09]">Orders</h1>
           <p className="text-sm text-[#57534E] mt-0.5">{orders.length} total orders</p>
         </div>
-        <button data-testid="create-order-btn" onClick={() => setCreateOpen(true)} className="h-10 px-4 bg-[#0C0A09] text-white rounded-lg text-sm font-medium hover:bg-[#1C1917] flex items-center gap-2">
-          <Plus className="w-4 h-4" /> Create Order
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleExportCSV}
+            disabled={orders.length === 0}
+            data-testid="export-csv-btn"
+            className="h-10 px-4 border border-[#E7E5E4] bg-white text-[#0C0A09] rounded-lg text-sm font-medium hover:bg-[#FAFAFA] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            <Download className="w-4 h-4" /> Export CSV
+          </button>
+          <button data-testid="create-order-btn" onClick={() => setCreateOpen(true)} className="h-10 px-4 bg-[#0C0A09] text-white rounded-lg text-sm font-medium hover:bg-[#1C1917] flex items-center gap-2">
+            <Plus className="w-4 h-4" /> Create Order
+          </button>
+        </div>
       </div>
 
       {/* Stat chips */}

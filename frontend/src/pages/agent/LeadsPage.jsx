@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Plus, Users, Search, Loader2, Phone, Mail } from "lucide-react";
+import { Plus, Users, Search, Loader2, Phone, Mail, Download } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { downloadCSV, filenameTimestamp } from "@/lib/csvExport";
 import axios from "axios";
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -49,6 +50,29 @@ export default function LeadsPage() {
     return l.status === filter;
   });
 
+  const handleExportCSV = () => {
+    const rows = filtered.map(l => ({
+      lead_id: l.lead_id,
+      customer_name: l.customer_name,
+      phone: l.phone || "",
+      email: l.email || "",
+      details: l.details || "",
+      source: l.source || "",
+      status: l.status || "",
+      created_at: l.created_at ? new Date(l.created_at).toISOString() : "",
+    }));
+    downloadCSV(`leads_${filenameTimestamp()}.csv`, rows, [
+      { key: "lead_id", header: "Lead ID" },
+      { key: "customer_name", header: "Customer" },
+      { key: "phone", header: "Phone" },
+      { key: "email", header: "Email" },
+      { key: "details", header: "Details" },
+      { key: "source", header: "Source" },
+      { key: "status", header: "Status" },
+      { key: "created_at", header: "Created At" },
+    ]);
+  };
+
   return (
     <div className="p-6 lg:p-8 max-w-7xl" data-testid="leads-page">
       <div className="flex items-center justify-between mb-6 pb-6 border-b border-[#E7E5E4]">
@@ -56,7 +80,17 @@ export default function LeadsPage() {
           <h1 className="font-serif text-[28px] text-[#0C0A09]">Leads</h1>
           <p className="text-sm text-[#57534E] mt-0.5">{leads.length} total leads</p>
         </div>
-        <button onClick={() => setDialogOpen(true)} data-testid="add-lead-btn" className="h-10 px-4 bg-[#0C0A09] text-white rounded-lg text-sm font-medium hover:bg-[#1C1917] flex items-center gap-2"><Plus className="w-4 h-4" /> Add Lead</button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleExportCSV}
+            disabled={leads.length === 0}
+            data-testid="export-csv-btn"
+            className="h-10 px-4 border border-[#E7E5E4] bg-white text-[#0C0A09] rounded-lg text-sm font-medium hover:bg-[#FAFAFA] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            <Download className="w-4 h-4" /> Export CSV
+          </button>
+          <button onClick={() => setDialogOpen(true)} data-testid="add-lead-btn" className="h-10 px-4 bg-[#0C0A09] text-white rounded-lg text-sm font-medium hover:bg-[#1C1917] flex items-center gap-2"><Plus className="w-4 h-4" /> Add Lead</button>
+        </div>
       </div>
 
       <div className="flex items-center gap-2 mb-4 flex-wrap">

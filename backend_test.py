@@ -1,588 +1,595 @@
 #!/usr/bin/env python3
 """
-Phase 5 Multi-Collection Management Backend Testing
-Tests all multi-collection management endpoints with comprehensive scenarios
+Phase 7 Backend Validation Testing
+Tests the item validation system for collection items
 """
 
 import requests
 import json
 import sys
-from datetime import datetime
+from typing import Dict, Any, Optional
 
 # Configuration
 BASE_URL = "https://agent-vault-7.preview.emergentagent.com/api"
 ADMIN_EMAIL = "admin@nurekha.com"
 ADMIN_PASSWORD = "Admin@123"
 
-class TestRunner:
+class Phase7ValidationTester:
     def __init__(self):
         self.session = requests.Session()
-        self.hotel_agent_id = None
+        self.auth_token = None
+        self.agent_id = None
         self.test_results = []
         
-    def log_test(self, test_name, status, details="", response_data=None):
+    def log_test(self, test_name: str, success: bool, details: str = ""):
         """Log test result"""
-        result = {
+        status = "✅ PASS" if success else "❌ FAIL"
+        self.test_results.append({
             "test": test_name,
-            "status": status,
-            "details": details,
-            "response_data": response_data,
-            "timestamp": datetime.now().isoformat()
-        }
-        self.test_results.append(result)
-        status_symbol = "✅" if status == "PASS" else "❌"
-        print(f"{status_symbol} {test_name}: {details}")
-        if response_data and status == "FAIL":
-            print(f"   Response: {response_data}")
+            "success": success,
+            "details": details
+        })
+        print(f"{status}: {test_name}")
+        if details:
+            print(f"   Details: {details}")
     
-    def authenticate(self):
+    def authenticate(self) -> bool:
         """Authenticate as admin user"""
-        print("🔐 Authenticating as admin user...")
-        
-        auth_data = {
-            "email": ADMIN_EMAIL,
-            "password": ADMIN_PASSWORD
-        }
-        
         try:
-            response = self.session.post(f"{BASE_URL}/auth/login", json=auth_data)
+            response = self.session.post(f"{BASE_URL}/auth/login", json={
+                "email": ADMIN_EMAIL,
+                "password": ADMIN_PASSWORD
+            })
+            
             if response.status_code == 200:
-                self.log_test("Authentication", "PASS", "Admin login successful")
+                data = response.json()
+                self.auth_token = data.get("access_token")
+                self.session.headers.update({"Authorization": f"Bearer {self.auth_token}"})
+                self.log_test("Admin Authentication", True, f"Logged in as {ADMIN_EMAIL}")
                 return True
             else:
-                self.log_test("Authentication", "FAIL", f"Login failed with status {response.status_code}", response.text)
+                self.log_test("Admin Authentication", False, f"Status: {response.status_code}, Response: {response.text}")
                 return False
+                
         except Exception as e:
-            self.log_test("Authentication", "FAIL", f"Login error: {str(e)}")
+            self.log_test("Admin Authentication", False, f"Exception: {str(e)}")
             return False
     
-    def get_hotel_agent(self):
-        """Get existing hotel agent or create one"""
-        print("🏨 Finding hotel agent...")
-        
+    def get_hotel_agent(self) -> bool:
+        """Get the existing hotel agent"""
         try:
-            # Get all agents
             response = self.session.get(f"{BASE_URL}/agents")
-            if response.status_code != 200:
-                self.log_test("Get Hotel Agent", "FAIL", f"Failed to get agents: {response.status_code}", response.text)
-                return False
             
-            agents = response.json()
-            
-            # Find hotel agent
-            hotel_agent = None
-            for agent in agents:
-                if agent.get("business_type") == "hotel":
-                    hotel_agent = agent
-                    break
-            
-            if hotel_agent:
-                self.hotel_agent_id = hotel_agent["agent_id"]
-                self.log_test("Get Hotel Agent", "PASS", f"Found hotel agent: {hotel_agent['name']} (ID: {self.hotel_agent_id})")
-                return True
-            else:
-                # Create hotel agent
-                print("   Creating new hotel agent...")
-                create_data = {
-                    "name": "Test Hotel",
-                    "business_type": "hotel"
-                }
+            if response.status_code == 200:
+                agents = response.json()
+                hotel_agent = None
                 
-                response = self.session.post(f"{BASE_URL}/agents", json=create_data)
-                if response.status_code == 200:
-                    new_agent = response.json()
-                    self.hotel_agent_id = new_agent["agent_id"]
-                    self.log_test("Create Hotel Agent", "PASS", f"Created hotel agent: {new_agent['name']} (ID: {self.hotel_agent_id})")
+                for agent in agents:
+                    if agent.get("business_type") == "hotel":
+                        hotel_agent = agent
+                        break
+                
+                if hotel_agent:
+                    self.agent_id = hotel_agent["agent_id"]
+                    self.log_test("Get Hotel Agent", True, f"Found hotel agent: {self.agent_id}")
                     return True
                 else:
-                    self.log_test("Create Hotel Agent", "FAIL", f"Failed to create hotel agent: {response.status_code}", response.text)
+                    self.log_test("Get Hotel Agent", False, "No hotel agent found")
                     return False
-                    
+            else:
+                self.log_test("Get Hotel Agent", False, f"Status: {response.status_code}, Response: {response.text}")
+                return False
+                
         except Exception as e:
-            self.log_test("Get Hotel Agent", "FAIL", f"Error: {str(e)}")
+            self.log_test("Get Hotel Agent", False, f"Exception: {str(e)}")
             return False
     
-    def test_1_schemas_list_with_item_count_and_sort(self):
-        """Test 1: Schemas list with item_count + sort order"""
-        print("\n📋 Test 1: Schemas list with item_count + sort order")
-        
+    def cleanup_existing_test_schema(self) -> bool:
+        """Clean up any existing test schema"""
         try:
-            response = self.session.get(f"{BASE_URL}/agents/{self.hotel_agent_id}/schemas")
-            
-            if response.status_code != 200:
-                self.log_test("Test 1 - GET schemas", "FAIL", f"Status: {response.status_code}", response.text)
-                return False
-            
-            schemas = response.json()
-            
-            # Verify each schema has item_count and order fields
-            for schema in schemas:
-                if "item_count" not in schema:
-                    self.log_test("Test 1 - item_count field", "FAIL", f"Schema '{schema.get('collection_name')}' missing item_count field")
-                    return False
-                if "order" not in schema:
-                    self.log_test("Test 1 - order field", "FAIL", f"Schema '{schema.get('collection_name')}' missing order field")
-                    return False
-                if not isinstance(schema["item_count"], int) or schema["item_count"] < 0:
-                    self.log_test("Test 1 - item_count type", "FAIL", f"Schema '{schema.get('collection_name')}' has invalid item_count: {schema['item_count']}")
-                    return False
-                if not isinstance(schema["order"], int):
-                    self.log_test("Test 1 - order type", "FAIL", f"Schema '{schema.get('collection_name')}' has invalid order: {schema['order']}")
-                    return False
-            
-            # Verify list is sorted by order ascending
-            orders = [schema["order"] for schema in schemas]
-            if orders != sorted(orders):
-                self.log_test("Test 1 - sort order", "FAIL", f"Schemas not sorted by order. Got: {orders}")
-                return False
-            
-            self.log_test("Test 1 - Schemas list", "PASS", f"Found {len(schemas)} schemas, all have item_count and order fields, sorted correctly")
+            response = self.session.delete(f"{BASE_URL}/agents/{self.agent_id}/schemas/phase7_test")
+            # Don't care about the result - it might not exist
             return True
-            
-        except Exception as e:
-            self.log_test("Test 1 - Schemas list", "FAIL", f"Error: {str(e)}")
-            return False
+        except:
+            return True
     
-    def test_2_max_2_collection_limit(self):
-        """Test 2: MAX 2 collection limit enforcement"""
-        print("\n🚫 Test 2: MAX 2 collection limit enforcement")
-        
+    def create_test_schema(self) -> bool:
+        """Create temporary test schema"""
         try:
-            # First, check current collection count
-            response = self.session.get(f"{BASE_URL}/agents/{self.hotel_agent_id}/schemas")
-            if response.status_code != 200:
-                self.log_test("Test 2 - Get current schemas", "FAIL", f"Status: {response.status_code}", response.text)
-                return False
+            # First cleanup any existing test schema
+            self.cleanup_existing_test_schema()
             
-            current_schemas = response.json()
-            current_count = len(current_schemas)
-            
-            if current_count == 1:
-                # Create second collection (should succeed)
-                create_data = {
-                    "collection_name": "amenities",
-                    "display_name": "Amenities",
-                    "fields": [
-                        {"field_name": "name", "field_type": "text", "required": True}
-                    ]
-                }
+            # Check current schemas to see if we need to delete one first
+            response = self.session.get(f"{BASE_URL}/agents/{self.agent_id}/schemas")
+            if response.status_code == 200:
+                schemas = response.json()
+                custom_schemas = [s for s in schemas if not s.get("is_default", False)]
                 
-                response = self.session.post(f"{BASE_URL}/agents/{self.hotel_agent_id}/schemas", json=create_data)
-                if response.status_code != 200:
-                    self.log_test("Test 2 - Create 2nd collection", "FAIL", f"Expected 200, got {response.status_code}", response.text)
-                    return False
-                
-                self.log_test("Test 2 - Create 2nd collection", "PASS", "Successfully created second collection")
+                # If we have 2 custom schemas, delete one to make room
+                if len(custom_schemas) >= 2:
+                    schema_to_delete = custom_schemas[0]["collection_name"]
+                    delete_response = self.session.delete(f"{BASE_URL}/agents/{self.agent_id}/schemas/{schema_to_delete}")
+                    if delete_response.status_code == 200:
+                        self.log_test("Cleanup Existing Schema", True, f"Deleted {schema_to_delete} to make room")
+                    else:
+                        self.log_test("Cleanup Existing Schema", False, f"Failed to delete {schema_to_delete}")
             
-            # Now try to create third collection (should fail)
-            create_data = {
-                "collection_name": "staff",
-                "display_name": "Staff",
+            # Create the test schema
+            test_schema = {
+                "collection_name": "phase7_test",
+                "display_name": "Phase 7 Test",
                 "fields": [
-                    {"field_name": "name", "field_type": "text"}
+                    {
+                        "field_name": "sku",
+                        "field_type": "text",
+                        "required": True,
+                        "unique": True,
+                        "validation": {"min_length": 3, "max_length": 10}
+                    },
+                    {
+                        "field_name": "price",
+                        "field_type": "number",
+                        "required": True,
+                        "validation": {"min": 0, "max": 10000}
+                    },
+                    {
+                        "field_name": "name",
+                        "field_type": "text",
+                        "required": False,
+                        "unique": False,
+                        "validation": {}
+                    },
+                    {
+                        "field_name": "photos",
+                        "field_type": "image",
+                        "required": False,
+                        "unique": False,
+                        "validation": {"max_count": 3}
+                    }
                 ]
             }
             
-            response = self.session.post(f"{BASE_URL}/agents/{self.hotel_agent_id}/schemas", json=create_data)
+            response = self.session.post(f"{BASE_URL}/agents/{self.agent_id}/schemas", json=test_schema)
             
-            if response.status_code == 400:
-                response_text = response.text
-                if "Maximum of 2 collections" in response_text:
-                    self.log_test("Test 2 - Limit enforcement", "PASS", "Correctly rejected 3rd collection with proper error message")
-                    return True
-                else:
-                    self.log_test("Test 2 - Error message", "FAIL", f"Wrong error message: {response_text}")
-                    return False
-            else:
-                self.log_test("Test 2 - Limit enforcement", "FAIL", f"Expected 400, got {response.status_code}", response.text)
-                return False
-                
-        except Exception as e:
-            self.log_test("Test 2 - Collection limit", "FAIL", f"Error: {str(e)}")
-            return False
-    
-    def test_3_rename_display_name_only(self):
-        """Test 3: Rename — display_name only (no data migration)"""
-        print("\n✏️ Test 3: Rename display_name only")
-        
-        try:
-            rename_data = {
-                "new_display_name": "Hotel Amenities"
-            }
-            
-            response = self.session.put(f"{BASE_URL}/agents/{self.hotel_agent_id}/schemas/amenities/rename", json=rename_data)
-            
-            if response.status_code != 200:
-                self.log_test("Test 3 - Rename display_name", "FAIL", f"Status: {response.status_code}", response.text)
-                return False
-            
-            updated_schema = response.json()
-            
-            # Verify display_name updated
-            if updated_schema.get("display_name") != "Hotel Amenities":
-                self.log_test("Test 3 - Display name update", "FAIL", f"Expected 'Hotel Amenities', got '{updated_schema.get('display_name')}'")
-                return False
-            
-            # Verify collection_name unchanged
-            if updated_schema.get("collection_name") != "amenities":
-                self.log_test("Test 3 - Collection name unchanged", "FAIL", f"Collection name changed to '{updated_schema.get('collection_name')}'")
-                return False
-            
-            self.log_test("Test 3 - Rename display_name", "PASS", "Display name updated, collection name unchanged")
-            return True
-            
-        except Exception as e:
-            self.log_test("Test 3 - Rename display_name", "FAIL", f"Error: {str(e)}")
-            return False
-    
-    def test_4_rename_internal_key_with_migration(self):
-        """Test 4: Rename — internal key with data migration"""
-        print("\n🔄 Test 4: Rename internal key with data migration")
-        
-        try:
-            # First, create an item in amenities collection
-            item_data = {
-                "data": {"name": "Pool"}
-            }
-            
-            response = self.session.post(f"{BASE_URL}/agents/{self.hotel_agent_id}/collections/amenities/items", json=item_data)
-            if response.status_code != 200:
-                self.log_test("Test 4 - Create test item", "FAIL", f"Status: {response.status_code}", response.text)
-                return False
-            
-            self.log_test("Test 4 - Create test item", "PASS", "Created test item in amenities collection")
-            
-            # Now rename the collection key
-            rename_data = {
-                "new_collection_name": "hotel_amenities"
-            }
-            
-            response = self.session.put(f"{BASE_URL}/agents/{self.hotel_agent_id}/schemas/amenities/rename", json=rename_data)
-            
-            if response.status_code != 200:
-                self.log_test("Test 4 - Rename collection key", "FAIL", f"Status: {response.status_code}", response.text)
-                return False
-            
-            updated_schema = response.json()
-            
-            # Verify collection_name updated
-            if updated_schema.get("collection_name") != "hotel_amenities":
-                self.log_test("Test 4 - Collection name update", "FAIL", f"Expected 'hotel_amenities', got '{updated_schema.get('collection_name')}'")
-                return False
-            
-            # Verify data migrated - check new collection has the item
-            response = self.session.get(f"{BASE_URL}/agents/{self.hotel_agent_id}/collections/hotel_amenities/items")
-            if response.status_code != 200:
-                self.log_test("Test 4 - Check migrated data", "FAIL", f"Status: {response.status_code}", response.text)
-                return False
-            
-            new_items = response.json()
-            if len(new_items) != 1 or new_items[0].get("data", {}).get("name") != "Pool":
-                self.log_test("Test 4 - Data migration", "FAIL", f"Data not migrated correctly. Items: {new_items}")
-                return False
-            
-            # Verify old collection is empty
-            response = self.session.get(f"{BASE_URL}/agents/{self.hotel_agent_id}/collections/amenities/items")
             if response.status_code == 200:
-                old_items = response.json()
-                if len(old_items) > 0:
-                    self.log_test("Test 4 - Old collection cleanup", "FAIL", f"Old collection still has {len(old_items)} items")
-                    return False
-            
-            self.log_test("Test 4 - Rename with migration", "PASS", "Collection renamed and data migrated successfully")
-            return True
-            
-        except Exception as e:
-            self.log_test("Test 4 - Rename with migration", "FAIL", f"Error: {str(e)}")
-            return False
-    
-    def test_5_rename_conflict_existing(self):
-        """Test 5: Rename — conflict with existing collection"""
-        print("\n⚠️ Test 5: Rename conflict with existing collection")
-        
-        try:
-            # Get current schemas to find the default collection name
-            response = self.session.get(f"{BASE_URL}/agents/{self.hotel_agent_id}/schemas")
-            if response.status_code != 200:
-                self.log_test("Test 5 - Get schemas", "FAIL", f"Status: {response.status_code}", response.text)
-                return False
-            
-            schemas = response.json()
-            default_collection = None
-            for schema in schemas:
-                if schema.get("collection_name") != "hotel_amenities":
-                    default_collection = schema.get("collection_name")
-                    break
-            
-            if not default_collection:
-                self.log_test("Test 5 - Find default collection", "FAIL", "Could not find default collection")
-                return False
-            
-            # Try to rename hotel_amenities to the default collection name (should conflict)
-            rename_data = {
-                "new_collection_name": default_collection
-            }
-            
-            response = self.session.put(f"{BASE_URL}/agents/{self.hotel_agent_id}/schemas/hotel_amenities/rename", json=rename_data)
-            
-            if response.status_code == 400:
-                response_text = response.text
-                if "already exists" in response_text:
-                    self.log_test("Test 5 - Conflict detection", "PASS", "Correctly detected and rejected conflicting collection name")
-                    return True
-                else:
-                    self.log_test("Test 5 - Error message", "FAIL", f"Wrong error message: {response_text}")
-                    return False
+                self.log_test("Create Test Schema", True, "Created phase7_test schema")
+                return True
             else:
-                self.log_test("Test 5 - Conflict detection", "FAIL", f"Expected 400, got {response.status_code}", response.text)
+                self.log_test("Create Test Schema", False, f"Status: {response.status_code}, Response: {response.text}")
                 return False
                 
         except Exception as e:
-            self.log_test("Test 5 - Rename conflict", "FAIL", f"Error: {str(e)}")
+            self.log_test("Create Test Schema", False, f"Exception: {str(e)}")
             return False
     
-    def test_6_duplicate_at_limit(self):
-        """Test 6: Duplicate — auto-generated name (should FAIL at 2/2 limit)"""
-        print("\n📋 Test 6: Duplicate at collection limit")
-        
+    def test_valid_create(self) -> bool:
+        """Test 1: Valid create"""
         try:
-            # Try to duplicate rooms collection (should fail since we're at 2/2 limit)
-            response = self.session.get(f"{BASE_URL}/agents/{self.hotel_agent_id}/schemas")
-            if response.status_code != 200:
-                self.log_test("Test 6 - Get schemas", "FAIL", f"Status: {response.status_code}", response.text)
-                return False
+            data = {
+                "data": {
+                    "sku": "ABC123",
+                    "price": 100,
+                    "name": "Widget"
+                }
+            }
             
-            schemas = response.json()
-            rooms_collection = None
-            for schema in schemas:
-                if schema.get("collection_name") != "hotel_amenities":
-                    rooms_collection = schema.get("collection_name")
-                    break
+            response = self.session.post(f"{BASE_URL}/agents/{self.agent_id}/collections/phase7_test/items", json=data)
             
-            if not rooms_collection:
-                self.log_test("Test 6 - Find rooms collection", "FAIL", "Could not find rooms collection")
-                return False
-            
-            response = self.session.post(f"{BASE_URL}/agents/{self.hotel_agent_id}/schemas/{rooms_collection}/duplicate")
-            
-            if response.status_code == 400:
-                response_text = response.text
-                if "Maximum of 2 collections" in response_text:
-                    self.log_test("Test 6 - Duplicate at limit", "PASS", "Correctly rejected duplicate when at collection limit")
-                    return True
-                else:
-                    self.log_test("Test 6 - Error message", "FAIL", f"Wrong error message: {response_text}")
-                    return False
+            if response.status_code == 200:
+                self.log_test("Valid Create", True, "Successfully created item with valid data")
+                return True
             else:
-                self.log_test("Test 6 - Duplicate at limit", "FAIL", f"Expected 400, got {response.status_code}", response.text)
+                self.log_test("Valid Create", False, f"Status: {response.status_code}, Response: {response.text}")
                 return False
                 
         except Exception as e:
-            self.log_test("Test 6 - Duplicate at limit", "FAIL", f"Error: {str(e)}")
+            self.log_test("Valid Create", False, f"Exception: {str(e)}")
             return False
     
-    def test_7_duplicate_after_freeing_slot(self):
-        """Test 7: Duplicate — after freeing a slot"""
-        print("\n🆓 Test 7: Duplicate after freeing a slot")
-        
+    def test_required_missing(self) -> bool:
+        """Test 2: Required field missing"""
         try:
-            # Delete hotel_amenities to free up a slot
-            response = self.session.delete(f"{BASE_URL}/agents/{self.hotel_agent_id}/schemas/hotel_amenities")
-            if response.status_code != 200:
-                self.log_test("Test 7 - Delete collection", "FAIL", f"Status: {response.status_code}", response.text)
-                return False
-            
-            self.log_test("Test 7 - Delete collection", "PASS", "Freed up collection slot")
-            
-            # Get the remaining collection name
-            response = self.session.get(f"{BASE_URL}/agents/{self.hotel_agent_id}/schemas")
-            if response.status_code != 200:
-                self.log_test("Test 7 - Get schemas", "FAIL", f"Status: {response.status_code}", response.text)
-                return False
-            
-            schemas = response.json()
-            if len(schemas) != 1:
-                self.log_test("Test 7 - Schema count", "FAIL", f"Expected 1 schema, got {len(schemas)}")
-                return False
-            
-            source_collection = schemas[0].get("collection_name")
-            
-            # Now duplicate with custom names
-            duplicate_data = {
-                "new_collection_name": "rooms_backup",
-                "new_display_name": "Rooms Backup"
+            data = {
+                "data": {
+                    "price": 100
+                    # Missing required 'sku' field
+                }
             }
             
-            response = self.session.post(f"{BASE_URL}/agents/{self.hotel_agent_id}/schemas/{source_collection}/duplicate", json=duplicate_data)
+            response = self.session.post(f"{BASE_URL}/agents/{self.agent_id}/collections/phase7_test/items", json=data)
             
-            if response.status_code != 200:
-                self.log_test("Test 7 - Duplicate collection", "FAIL", f"Status: {response.status_code}", response.text)
+            if response.status_code == 400 and "required" in response.text.lower():
+                self.log_test("Required Missing", True, f"Correctly rejected missing required field: {response.text}")
+                return True
+            else:
+                self.log_test("Required Missing", False, f"Expected 400 with 'required' in message, got: {response.status_code}, {response.text}")
                 return False
-            
-            new_schema = response.json()
-            
-            # Verify new schema properties
-            if new_schema.get("collection_name") != "rooms_backup":
-                self.log_test("Test 7 - New collection name", "FAIL", f"Expected 'rooms_backup', got '{new_schema.get('collection_name')}'")
-                return False
-            
-            if new_schema.get("display_name") != "Rooms Backup":
-                self.log_test("Test 7 - New display name", "FAIL", f"Expected 'Rooms Backup', got '{new_schema.get('display_name')}'")
-                return False
-            
-            if new_schema.get("item_count") != 0:
-                self.log_test("Test 7 - Item count", "FAIL", f"Expected 0 items, got {new_schema.get('item_count')}")
-                return False
-            
-            # Verify fields are copied
-            if not new_schema.get("fields"):
-                self.log_test("Test 7 - Fields copied", "FAIL", "No fields in duplicated schema")
-                return False
-            
-            self.log_test("Test 7 - Duplicate after freeing", "PASS", "Successfully duplicated collection with custom names")
-            return True
-            
+                
         except Exception as e:
-            self.log_test("Test 7 - Duplicate after freeing", "FAIL", f"Error: {str(e)}")
+            self.log_test("Required Missing", False, f"Exception: {str(e)}")
             return False
     
-    def test_8_reorder(self):
-        """Test 8: Reorder"""
-        print("\n🔄 Test 8: Reorder schemas")
-        
+    def test_unique_violation(self) -> bool:
+        """Test 3: Unique violation"""
         try:
-            # Get current schemas
-            response = self.session.get(f"{BASE_URL}/agents/{self.hotel_agent_id}/schemas")
-            if response.status_code != 200:
-                self.log_test("Test 8 - Get schemas", "FAIL", f"Status: {response.status_code}", response.text)
-                return False
-            
-            schemas = response.json()
-            if len(schemas) != 2:
-                self.log_test("Test 8 - Schema count", "FAIL", f"Expected 2 schemas, got {len(schemas)}")
-                return False
-            
-            # Get collection names
-            collection_names = [schema["collection_name"] for schema in schemas]
-            
-            # Reorder - put rooms_backup first
-            reorder_data = {
-                "order": ["rooms_backup", collection_names[0] if collection_names[0] != "rooms_backup" else collection_names[1]]
+            data = {
+                "data": {
+                    "sku": "ABC123",  # Same as test 1
+                    "price": 200
+                }
             }
             
-            response = self.session.patch(f"{BASE_URL}/agents/{self.hotel_agent_id}/schemas/reorder", json=reorder_data)
+            response = self.session.post(f"{BASE_URL}/agents/{self.agent_id}/collections/phase7_test/items", json=data)
             
-            if response.status_code != 200:
-                self.log_test("Test 8 - Reorder request", "FAIL", f"Status: {response.status_code}", response.text)
+            if response.status_code == 400 and "unique" in response.text.lower():
+                self.log_test("Unique Violation", True, f"Correctly rejected duplicate unique field: {response.text}")
+                return True
+            else:
+                self.log_test("Unique Violation", False, f"Expected 400 with 'unique' in message, got: {response.status_code}, {response.text}")
                 return False
-            
-            reorder_result = response.json()
-            
-            # Verify response
-            if not reorder_result.get("success"):
-                self.log_test("Test 8 - Reorder response", "FAIL", f"Success not true: {reorder_result}")
-                return False
-            
-            # Verify new order by getting schemas again
-            response = self.session.get(f"{BASE_URL}/agents/{self.hotel_agent_id}/schemas")
-            if response.status_code != 200:
-                self.log_test("Test 8 - Get reordered schemas", "FAIL", f"Status: {response.status_code}", response.text)
-                return False
-            
-            reordered_schemas = response.json()
-            
-            # Verify first schema is rooms_backup
-            if reordered_schemas[0].get("collection_name") != "rooms_backup":
-                self.log_test("Test 8 - Reorder verification", "FAIL", f"First schema is '{reordered_schemas[0].get('collection_name')}', expected 'rooms_backup'")
-                return False
-            
-            self.log_test("Test 8 - Reorder", "PASS", "Successfully reordered schemas")
-            return True
-            
+                
         except Exception as e:
-            self.log_test("Test 8 - Reorder", "FAIL", f"Error: {str(e)}")
+            self.log_test("Unique Violation", False, f"Exception: {str(e)}")
             return False
     
-    def test_9_cleanup(self):
-        """Test 9: Cleanup"""
-        print("\n🧹 Test 9: Cleanup test collections")
-        
+    def test_string_too_short(self) -> bool:
+        """Test 4: String too short"""
         try:
-            # Delete rooms_backup to restore default state
-            response = self.session.delete(f"{BASE_URL}/agents/{self.hotel_agent_id}/schemas/rooms_backup")
-            if response.status_code != 200:
-                self.log_test("Test 9 - Delete rooms_backup", "FAIL", f"Status: {response.status_code}", response.text)
+            data = {
+                "data": {
+                    "sku": "AB",  # 2 chars, below min_length 3
+                    "price": 50
+                }
+            }
+            
+            response = self.session.post(f"{BASE_URL}/agents/{self.agent_id}/collections/phase7_test/items", json=data)
+            
+            if response.status_code == 400 and "at least 3" in response.text:
+                self.log_test("String Too Short", True, f"Correctly rejected short string: {response.text}")
+                return True
+            else:
+                self.log_test("String Too Short", False, f"Expected 400 with 'at least 3' in message, got: {response.status_code}, {response.text}")
                 return False
-            
-            # Verify only default collection remains
-            response = self.session.get(f"{BASE_URL}/agents/{self.hotel_agent_id}/schemas")
-            if response.status_code != 200:
-                self.log_test("Test 9 - Get final schemas", "FAIL", f"Status: {response.status_code}", response.text)
-                return False
-            
-            final_schemas = response.json()
-            if len(final_schemas) != 1:
-                self.log_test("Test 9 - Final schema count", "FAIL", f"Expected 1 schema, got {len(final_schemas)}")
-                return False
-            
-            self.log_test("Test 9 - Cleanup", "PASS", "Successfully cleaned up test collections, restored to default state")
-            return True
-            
+                
         except Exception as e:
-            self.log_test("Test 9 - Cleanup", "FAIL", f"Error: {str(e)}")
+            self.log_test("String Too Short", False, f"Exception: {str(e)}")
+            return False
+    
+    def test_string_too_long(self) -> bool:
+        """Test 5: String too long"""
+        try:
+            data = {
+                "data": {
+                    "sku": "ABCDEFGHIJK",  # 11 chars, above max_length 10
+                    "price": 50
+                }
+            }
+            
+            response = self.session.post(f"{BASE_URL}/agents/{self.agent_id}/collections/phase7_test/items", json=data)
+            
+            if response.status_code == 400 and "at most 10" in response.text:
+                self.log_test("String Too Long", True, f"Correctly rejected long string: {response.text}")
+                return True
+            else:
+                self.log_test("String Too Long", False, f"Expected 400 with 'at most 10' in message, got: {response.status_code}, {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_test("String Too Long", False, f"Exception: {str(e)}")
+            return False
+    
+    def test_number_below_min(self) -> bool:
+        """Test 6: Number below min"""
+        try:
+            data = {
+                "data": {
+                    "sku": "NEG001",
+                    "price": -5  # Below min 0
+                }
+            }
+            
+            response = self.session.post(f"{BASE_URL}/agents/{self.agent_id}/collections/phase7_test/items", json=data)
+            
+            if response.status_code == 400 and ">= 0" in response.text:
+                self.log_test("Number Below Min", True, f"Correctly rejected number below min: {response.text}")
+                return True
+            else:
+                self.log_test("Number Below Min", False, f"Expected 400 with '>= 0' in message, got: {response.status_code}, {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_test("Number Below Min", False, f"Exception: {str(e)}")
+            return False
+    
+    def test_number_above_max(self) -> bool:
+        """Test 7: Number above max"""
+        try:
+            data = {
+                "data": {
+                    "sku": "BIG001",
+                    "price": 99999  # Above max 10000
+                }
+            }
+            
+            response = self.session.post(f"{BASE_URL}/agents/{self.agent_id}/collections/phase7_test/items", json=data)
+            
+            if response.status_code == 400 and "<= 10000" in response.text:
+                self.log_test("Number Above Max", True, f"Correctly rejected number above max: {response.text}")
+                return True
+            else:
+                self.log_test("Number Above Max", False, f"Expected 400 with '<= 10000' in message, got: {response.status_code}, {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_test("Number Above Max", False, f"Exception: {str(e)}")
+            return False
+    
+    def test_non_numeric_value(self) -> bool:
+        """Test 8: Non-numeric value for number field"""
+        try:
+            data = {
+                "data": {
+                    "sku": "NON001",
+                    "price": "abc"  # String instead of number
+                }
+            }
+            
+            response = self.session.post(f"{BASE_URL}/agents/{self.agent_id}/collections/phase7_test/items", json=data)
+            
+            if response.status_code == 400 and "number" in response.text.lower():
+                self.log_test("Non-Numeric Value", True, f"Correctly rejected non-numeric value: {response.text}")
+                return True
+            else:
+                self.log_test("Non-Numeric Value", False, f"Expected 400 with 'number' in message, got: {response.status_code}, {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_test("Non-Numeric Value", False, f"Exception: {str(e)}")
+            return False
+    
+    def test_image_count_exceeded(self) -> bool:
+        """Test 9: Image count exceeded"""
+        try:
+            data = {
+                "data": {
+                    "sku": "IMG001",
+                    "price": 50,
+                    "photos": ["a.jpg", "b.jpg", "c.jpg", "d.jpg"]  # 4 images, max_count=3
+                }
+            }
+            
+            response = self.session.post(f"{BASE_URL}/agents/{self.agent_id}/collections/phase7_test/items", json=data)
+            
+            if response.status_code == 400 and "at most 3" in response.text:
+                self.log_test("Image Count Exceeded", True, f"Correctly rejected too many images: {response.text}")
+                return True
+            else:
+                self.log_test("Image Count Exceeded", False, f"Expected 400 with 'at most 3' in message, got: {response.status_code}, {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_test("Image Count Exceeded", False, f"Exception: {str(e)}")
+            return False
+    
+    def test_image_count_within_limit(self) -> bool:
+        """Test 10: Image count within limit"""
+        try:
+            data = {
+                "data": {
+                    "sku": "IMG002",
+                    "price": 50,
+                    "photos": ["a.jpg", "b.jpg"]  # 2 images, within max_count=3
+                }
+            }
+            
+            response = self.session.post(f"{BASE_URL}/agents/{self.agent_id}/collections/phase7_test/items", json=data)
+            
+            if response.status_code == 200:
+                self.log_test("Image Count Within Limit", True, "Successfully created item with images within limit")
+                return True
+            else:
+                self.log_test("Image Count Within Limit", False, f"Expected 200, got: {response.status_code}, {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_test("Image Count Within Limit", False, f"Exception: {str(e)}")
+            return False
+    
+    def test_unique_excludes_self_on_update(self) -> bool:
+        """Test 11: Unique check excludes self on update"""
+        try:
+            # First, get the item from test 1 (sku="ABC123")
+            response = self.session.get(f"{BASE_URL}/agents/{self.agent_id}/collections/phase7_test/items")
+            
+            if response.status_code != 200:
+                self.log_test("Unique Excludes Self - Get Items", False, f"Failed to get items: {response.status_code}")
+                return False
+            
+            items = response.json()
+            abc123_item = None
+            for item in items:
+                if item.get("data", {}).get("sku") == "ABC123":
+                    abc123_item = item
+                    break
+            
+            if not abc123_item:
+                self.log_test("Unique Excludes Self - Find Item", False, "Could not find ABC123 item")
+                return False
+            
+            item_id = abc123_item["item_id"]
+            
+            # Now update it with the same sku (should be allowed)
+            data = {
+                "data": {
+                    "sku": "ABC123",  # Same sku
+                    "price": 150      # Different price
+                }
+            }
+            
+            response = self.session.put(f"{BASE_URL}/agents/{self.agent_id}/collections/phase7_test/items/{item_id}", json=data)
+            
+            if response.status_code == 200:
+                self.log_test("Unique Excludes Self on Update", True, "Successfully updated item with same unique field")
+                return True
+            else:
+                self.log_test("Unique Excludes Self on Update", False, f"Expected 200, got: {response.status_code}, {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_test("Unique Excludes Self on Update", False, f"Exception: {str(e)}")
+            return False
+    
+    def test_unique_violation_on_update(self) -> bool:
+        """Test 12: Unique violation on update"""
+        try:
+            # First create another item
+            data = {
+                "data": {
+                    "sku": "XYZ999",
+                    "price": 300
+                }
+            }
+            
+            response = self.session.post(f"{BASE_URL}/agents/{self.agent_id}/collections/phase7_test/items", json=data)
+            
+            if response.status_code != 200:
+                self.log_test("Unique Violation Update - Create Item", False, f"Failed to create item: {response.status_code}")
+                return False
+            
+            new_item = response.json()
+            item_id = new_item["item_id"]
+            
+            # Now try to update it with existing sku
+            data = {
+                "data": {
+                    "sku": "ABC123",  # Existing sku from test 1
+                    "price": 300
+                }
+            }
+            
+            response = self.session.put(f"{BASE_URL}/agents/{self.agent_id}/collections/phase7_test/items/{item_id}", json=data)
+            
+            if response.status_code == 400 and "unique" in response.text.lower():
+                self.log_test("Unique Violation on Update", True, f"Correctly rejected unique violation on update: {response.text}")
+                return True
+            else:
+                self.log_test("Unique Violation on Update", False, f"Expected 400 with 'unique' in message, got: {response.status_code}, {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_test("Unique Violation on Update", False, f"Exception: {str(e)}")
+            return False
+    
+    def test_max_fields_limit(self) -> bool:
+        """Test 13: MAX 20 fields limit"""
+        try:
+            # Create a schema with 21 fields
+            fields = []
+            for i in range(21):
+                fields.append({
+                    "field_name": f"field_{i}",
+                    "field_type": "text",
+                    "required": False,
+                    "unique": False,
+                    "validation": {}
+                })
+            
+            test_schema = {
+                "collection_name": "max_fields_test",
+                "display_name": "Max Fields Test",
+                "fields": fields
+            }
+            
+            response = self.session.post(f"{BASE_URL}/agents/{self.agent_id}/schemas", json=test_schema)
+            
+            if response.status_code == 400 and ("Maximum 20" in response.text or "20 fields" in response.text):
+                self.log_test("MAX 20 Fields Limit", True, f"Correctly rejected schema with 21 fields: {response.text}")
+                return True
+            else:
+                self.log_test("MAX 20 Fields Limit", False, f"Expected 400 with 'Maximum 20' in message, got: {response.status_code}, {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_test("MAX 20 Fields Limit", False, f"Exception: {str(e)}")
+            return False
+    
+    def cleanup_test_schema(self) -> bool:
+        """Clean up test schema"""
+        try:
+            response = self.session.delete(f"{BASE_URL}/agents/{self.agent_id}/schemas/phase7_test")
+            
+            if response.status_code == 200:
+                self.log_test("Cleanup Test Schema", True, "Successfully deleted test schema")
+                return True
+            else:
+                self.log_test("Cleanup Test Schema", False, f"Status: {response.status_code}, Response: {response.text}")
+                return False
+                
+        except Exception as e:
+            self.log_test("Cleanup Test Schema", False, f"Exception: {str(e)}")
             return False
     
     def run_all_tests(self):
-        """Run all Phase 5 Multi-Collection Management tests"""
-        print("🚀 Starting Phase 5 Multi-Collection Management Backend Tests")
-        print("=" * 70)
+        """Run all Phase 7 validation tests"""
+        print("=" * 60)
+        print("PHASE 7 BACKEND VALIDATION TESTING")
+        print("=" * 60)
         
-        # Authentication
+        # Setup
         if not self.authenticate():
             return False
         
-        # Get hotel agent
         if not self.get_hotel_agent():
             return False
         
-        # Run all tests in sequence
+        if not self.create_test_schema():
+            return False
+        
+        # Run validation tests
         tests = [
-            self.test_1_schemas_list_with_item_count_and_sort,
-            self.test_2_max_2_collection_limit,
-            self.test_3_rename_display_name_only,
-            self.test_4_rename_internal_key_with_migration,
-            self.test_5_rename_conflict_existing,
-            self.test_6_duplicate_at_limit,
-            self.test_7_duplicate_after_freeing_slot,
-            self.test_8_reorder,
-            self.test_9_cleanup
+            self.test_valid_create,
+            self.test_required_missing,
+            self.test_unique_violation,
+            self.test_string_too_short,
+            self.test_string_too_long,
+            self.test_number_below_min,
+            self.test_number_above_max,
+            self.test_non_numeric_value,
+            self.test_image_count_exceeded,
+            self.test_image_count_within_limit,
+            self.test_unique_excludes_self_on_update,
+            self.test_unique_violation_on_update,
+            self.test_max_fields_limit
         ]
         
-        passed = 0
-        failed = 0
-        
         for test in tests:
-            if test():
-                passed += 1
-            else:
-                failed += 1
+            test()
+        
+        # Cleanup
+        self.cleanup_test_schema()
         
         # Summary
-        print("\n" + "=" * 70)
-        print(f"📊 TEST SUMMARY")
-        print(f"✅ Passed: {passed}")
-        print(f"❌ Failed: {failed}")
-        print(f"📈 Success Rate: {(passed/(passed+failed)*100):.1f}%")
+        print("\n" + "=" * 60)
+        print("TEST SUMMARY")
+        print("=" * 60)
         
-        if failed > 0:
-            print("\n❌ FAILED TESTS:")
+        passed = sum(1 for result in self.test_results if result["success"])
+        total = len(self.test_results)
+        
+        print(f"Tests Passed: {passed}/{total} ({passed/total*100:.1f}%)")
+        
+        if passed < total:
+            print("\nFAILED TESTS:")
             for result in self.test_results:
-                if result["status"] == "FAIL":
-                    print(f"   - {result['test']}: {result['details']}")
+                if not result["success"]:
+                    print(f"❌ {result['test']}: {result['details']}")
         
-        return failed == 0
+        return passed == total
+
+def main():
+    tester = Phase7ValidationTester()
+    success = tester.run_all_tests()
+    sys.exit(0 if success else 1)
 
 if __name__ == "__main__":
-    runner = TestRunner()
-    success = runner.run_all_tests()
-    sys.exit(0 if success else 1)
+    main()
