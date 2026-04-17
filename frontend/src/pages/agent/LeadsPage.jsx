@@ -21,8 +21,14 @@ export default function LeadsPage() {
 
   useEffect(() => {
     (async () => {
-      try { const { data } = await axios.get(`${API}/api/agents/${agentId}/leads`, { withCredentials: true }); setLeads(data); } catch {}
-      finally { setLoading(false); }
+      try {
+        const { data } = await axios.get(`${API}/api/agents/${agentId}/leads`, { withCredentials: true });
+        setLeads(data);
+      } catch (err) {
+        console.error("Failed to load leads", err);
+      } finally {
+        setLoading(false);
+      }
     })();
   }, [agentId]);
 
@@ -34,15 +40,20 @@ export default function LeadsPage() {
       setLeads(prev => [data, ...prev]);
       setDialogOpen(false);
       setForm({ customer_name: "", phone: "", email: "", details: "", source: "manual" });
-    } catch {}
-    finally { setSaving(false); }
+    } catch (err) {
+      console.error("Failed to create lead", err);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleStatusChange = async (leadId, status) => {
     try {
       const { data } = await axios.patch(`${API}/api/agents/${agentId}/leads/${leadId}/status`, { status }, { withCredentials: true });
       setLeads(prev => prev.map(l => l.lead_id === leadId ? data : l));
-    } catch {}
+    } catch (err) {
+      console.error("Failed to update lead status", err);
+    }
   };
 
   const filtered = leads.filter(l => {

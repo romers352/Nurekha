@@ -90,7 +90,7 @@ function StatusTimeline({ history }) {
         const sc = STATUS_CONFIG[h.status] || STATUS_CONFIG.pending;
         const Icon = sc.icon;
         return (
-          <div key={i} className="flex items-start gap-3">
+          <div key={`${h.status}_${h.timestamp || i}`} className="flex items-start gap-3">
             <div className="flex flex-col items-center">
               <div className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: sc.bg }}>
                 <Icon className="w-3 h-3" style={{ color: sc.color }} />
@@ -116,7 +116,7 @@ export default function AgentOrdersPage() {
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [detailOrder, setDetailOrder] = useState(null);
-  const [form, setForm] = useState({ end_user_name: "", items: [{ name: "", quantity: 1, price: 0 }], payment_method: "cod", delivery_address: "", notes: "" });
+  const [form, setForm] = useState({ end_user_name: "", items: [{ _key: `itm_${Date.now()}`, name: "", quantity: 1, price: 0 }], payment_method: "cod", delivery_address: "", notes: "" });
   const [creating, setCreating] = useState(false);
 
   const fetchOrders = async () => {
@@ -144,7 +144,7 @@ export default function AgentOrdersPage() {
     } catch (err) { console.error(err); }
   };
 
-  const addItem = () => setForm(p => ({ ...p, items: [...p.items, { name: "", quantity: 1, price: 0 }] }));
+  const addItem = () => setForm(p => ({ ...p, items: [...p.items, { _key: `itm_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, name: "", quantity: 1, price: 0 }] }));
   const removeItem = (i) => setForm(p => ({ ...p, items: p.items.filter((_, idx) => idx !== i) }));
   const updateItem = (i, field, value) => setForm(p => ({ ...p, items: p.items.map((item, idx) => idx === i ? { ...item, [field]: value } : item) }));
 
@@ -157,14 +157,14 @@ export default function AgentOrdersPage() {
       await axios.post(`${API}/api/orders`, {
         agent_id: agentId,
         end_user_name: form.end_user_name,
-        items: form.items.filter(i => i.name.trim()),
+        items: form.items.filter(i => i.name.trim()).map(({ _key, ...rest }) => rest),
         total_amount: totalAmount,
         payment_method: form.payment_method,
         delivery_address: form.delivery_address,
         notes: form.notes,
       }, { withCredentials: true });
       setCreateOpen(false);
-      setForm({ end_user_name: "", items: [{ name: "", quantity: 1, price: 0 }], payment_method: "cod", delivery_address: "", notes: "" });
+      setForm({ end_user_name: "", items: [{ _key: `itm_${Date.now()}`, name: "", quantity: 1, price: 0 }], payment_method: "cod", delivery_address: "", notes: "" });
       fetchOrders();
     } catch {}
     finally { setCreating(false); }
@@ -274,7 +274,7 @@ export default function AgentOrdersPage() {
             <div>
               <label className="block text-sm font-medium text-[#0C0A09] mb-1.5">Items</label>
               {form.items.map((item, i) => (
-                <div key={i} className="flex gap-2 mb-2">
+                <div key={item._key || `idx_${i}`} className="flex gap-2 mb-2">
                   <input data-testid={`item-name-${i}`} value={item.name} onChange={e => updateItem(i, "name", e.target.value)} className="flex-1 border border-[#E7E5E4] rounded-lg px-3 py-2 text-sm outline-none" placeholder="Item name" />
                   <input data-testid={`item-qty-${i}`} type="number" min="1" value={item.quantity} onChange={e => updateItem(i, "quantity", parseInt(e.target.value) || 1)} className="w-16 border border-[#E7E5E4] rounded-lg px-2 py-2 text-sm outline-none text-center" />
                   <input data-testid={`item-price-${i}`} type="number" min="0" value={item.price} onChange={e => updateItem(i, "price", parseFloat(e.target.value) || 0)} className="w-24 border border-[#E7E5E4] rounded-lg px-2 py-2 text-sm outline-none" placeholder="Price" />

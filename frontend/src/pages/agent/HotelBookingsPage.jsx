@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Plus, CalendarCheck, Search, Loader2, Download } from "lucide-react";
@@ -26,7 +26,7 @@ export default function HotelBookingsPage() {
   const [filter, setFilter] = useState("");
   const [form, setForm] = useState({ guest_name: "", guest_email: "", guest_phone: "", room_id: "", check_in: "", check_out: "", total_amount: 0, notes: "" });
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const [bRes, rRes] = await Promise.all([
         axios.get(`${API}/api/bookings?agent_id=${agentId}`, { withCredentials: true }),
@@ -34,11 +34,14 @@ export default function HotelBookingsPage() {
       ]);
       setBookings(bRes.data);
       setRooms(rRes.data);
-    } catch {}
-    finally { setLoading(false); }
-  };
+    } catch (err) {
+      console.error("Failed to load bookings/rooms", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [agentId]);
 
-  useEffect(() => { fetchData(); }, [agentId]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleCreate = async () => {
     if (!form.guest_name || !form.room_id || !form.check_in || !form.check_out) return;

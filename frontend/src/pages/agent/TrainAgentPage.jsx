@@ -18,7 +18,7 @@ function BusinessInfoTab({ agentId }) {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    (async () => { try { const { data } = await axios.get(`${API}/api/agents/${agentId}/training/business-info`, { withCredentials: true }); if (data) setInfo(prev => ({ ...prev, ...data })); } catch {} })();
+    (async () => { try { const { data } = await axios.get(`${API}/api/agents/${agentId}/training/business-info`, { withCredentials: true }); if (data) setInfo(prev => ({ ...prev, ...data })); } catch (err) { console.error("Failed to load business-info", err); } })();
   }, [agentId]);
 
   const save = async () => {
@@ -75,10 +75,10 @@ function FAQsTab({ agentId }) {
       if (editFaq) { await axios.put(`${API}/api/agents/${agentId}/training/faqs/${editFaq.faq_id}`, { question: q, answer: a }, { withCredentials: true }); }
       else { await axios.post(`${API}/api/agents/${agentId}/training/faqs`, { question: q, answer: a }, { withCredentials: true }); }
       setDialogOpen(false); fetchFaqs();
-    } catch {} finally { setSaving(false); }
+    } catch (err) { console.error("Save failed", err); } finally { setSaving(false); }
   };
 
-  const handleDelete = async (faqId) => { try { await axios.delete(`${API}/api/agents/${agentId}/training/faqs/${faqId}`, { withCredentials: true }); fetchFaqs(); } catch {} };
+  const handleDelete = async (faqId) => { try { await axios.delete(`${API}/api/agents/${agentId}/training/faqs/${faqId}`, { withCredentials: true }); fetchFaqs(); } catch (err) { console.error("Failed to delete FAQ", err); } };
 
   const handleCSVUpload = async (e) => {
     const file = e.target.files?.[0];
@@ -94,7 +94,7 @@ function FAQsTab({ agentId }) {
       }
     }
     if (faqsData.length > 0) {
-      try { await axios.post(`${API}/api/agents/${agentId}/training/faqs/bulk`, { faqs: faqsData }, { withCredentials: true }); fetchFaqs(); } catch {}
+      try { await axios.post(`${API}/api/agents/${agentId}/training/faqs/bulk`, { faqs: faqsData }, { withCredentials: true }); fetchFaqs(); } catch (err) { console.error("Failed to bulk-upload FAQs", err); }
     }
     setImporting(false);
     e.target.value = "";
@@ -135,7 +135,7 @@ function FAQsTab({ agentId }) {
 function DocumentsTab({ agentId }) {
   const [docs, setDocs] = useState([]);
   const [url, setUrl] = useState("");
-  const fetchDocs = async () => { try { const { data } = await axios.get(`${API}/api/agents/${agentId}/training/documents`, { withCredentials: true }); setDocs(data); } catch {} };
+  const fetchDocs = async () => { try { const { data } = await axios.get(`${API}/api/agents/${agentId}/training/documents`, { withCredentials: true }); setDocs(data); } catch (err) { console.error("Failed to load documents", err); } };
   useEffect(() => { fetchDocs(); }, [agentId]);
   const handleUpload = async (e) => { const files = e.target.files; if (!files) return; for (const file of files) { await axios.post(`${API}/api/agents/${agentId}/training/documents`, { name: file.name, doc_type: "file", size: file.size }, { withCredentials: true }); } fetchDocs(); };
   const handleScrape = async () => { if (!url.trim()) return; await axios.post(`${API}/api/agents/${agentId}/training/documents`, { name: url, doc_type: "url", url }, { withCredentials: true }); setUrl(""); fetchDocs(); };
@@ -159,7 +159,7 @@ function ProductsTab({ agentId }) {
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
 
-  const fetchProducts = async () => { try { const { data } = await axios.get(`${API}/api/agents/${agentId}/training/products`, { withCredentials: true }); setProducts(data); } catch {} };
+  const fetchProducts = async () => { try { const { data } = await axios.get(`${API}/api/agents/${agentId}/training/products`, { withCredentials: true }); setProducts(data); } catch (err) { console.error("Failed to load products", err); } };
   useEffect(() => { fetchProducts(); }, [agentId]);
 
   const openCreate = () => { setEditProduct(null); setForm({ name: "", price: 0, stock: 0, category: "", description: "", image_url: "", sku: "", variants: [] }); setDialogOpen(true); };
@@ -172,7 +172,7 @@ function ProductsTab({ agentId }) {
       if (editProduct) { await axios.put(`${API}/api/agents/${agentId}/training/products/${editProduct.product_id}`, form, { withCredentials: true }); }
       else { await axios.post(`${API}/api/agents/${agentId}/training/products`, form, { withCredentials: true }); }
       setDialogOpen(false); fetchProducts();
-    } catch {} finally { setSaving(false); }
+    } catch (err) { console.error("Save failed", err); } finally { setSaving(false); }
   };
 
   const handleDelete = async (productId) => { await axios.delete(`${API}/api/agents/${agentId}/training/products/${productId}`, { withCredentials: true }); fetchProducts(); };
@@ -188,7 +188,7 @@ function ProductsTab({ agentId }) {
       const parts = lines[i].split(",");
       if (parts.length >= 2) { productsData.push({ name: parts[0].replace(/"/g, "").trim(), price: parseFloat(parts[1]) || 0, stock: parseInt(parts[2]) || 0, category: (parts[3] || "").replace(/"/g, "").trim(), description: (parts[4] || "").replace(/"/g, "").trim() }); }
     }
-    if (productsData.length > 0) { try { await axios.post(`${API}/api/agents/${agentId}/training/products/bulk`, { products: productsData }, { withCredentials: true }); fetchProducts(); } catch {} }
+    if (productsData.length > 0) { try { await axios.post(`${API}/api/agents/${agentId}/training/products/bulk`, { products: productsData }, { withCredentials: true }); fetchProducts(); } catch (err) { console.error("Failed to bulk-upload products", err); } }
     setImporting(false); e.target.value = "";
   };
 

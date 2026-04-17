@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { Plus, Trash2, Save, Loader2, Settings2, AlertCircle, Copy, Edit3, GripVertical } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -173,11 +173,7 @@ export default function SchemaBuilderPage() {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  useEffect(() => {
-    fetchSchemas();
-  }, [agentId]);
-
-  const fetchSchemas = async () => {
+  const fetchSchemas = useCallback(async () => {
     try {
       const { data } = await axios.get(`${API}/api/agents/${agentId}/schemas`, { withCredentials: true });
       setSchemas(data);
@@ -186,7 +182,11 @@ export default function SchemaBuilderPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [agentId]);
+
+  useEffect(() => {
+    fetchSchemas();
+  }, [fetchSchemas]);
 
   const atLimit = schemas.length >= MAX_COLLECTIONS;
 
@@ -215,7 +215,7 @@ export default function SchemaBuilderPage() {
       alert("Maximum 20 fields allowed per collection");
       return;
     }
-    setFields([...fields, { field_name: "", field_type: "text", required: false, unique: false, validation: {}, dropdown_options: [] }]);
+    setFields([...fields, { _key: `f_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`, field_name: "", field_type: "text", required: false, unique: false, validation: {}, dropdown_options: [] }]);
   };
 
   const removeField = (index) => setFields(fields.filter((_, i) => i !== index));
@@ -249,7 +249,10 @@ export default function SchemaBuilderPage() {
         {
           collection_name: collectionName.trim().toLowerCase().replace(/\s+/g, "_"),
           display_name: displayName.trim() || collectionName.trim(),
-          fields: fields.map((f) => ({ ...f, field_name: f.field_name.trim().toLowerCase().replace(/\s+/g, "_") })),
+          fields: fields.map((f) => {
+            const { _key, ...clean } = f;
+            return { ...clean, field_name: clean.field_name.trim().toLowerCase().replace(/\s+/g, "_") };
+          }),
         },
         { withCredentials: true }
       );
@@ -535,7 +538,7 @@ export default function SchemaBuilderPage() {
 
               <div className="space-y-3">
                 {fields.map((field, index) => (
-                  <div key={index} className="border border-[#E7E5E4] rounded-lg p-4 bg-[#FAFAFA]">
+                  <div key={field._key || `idx_${index}`} className="border border-[#E7E5E4] rounded-lg p-4 bg-[#FAFAFA]">
                     <div className="flex items-start gap-3">
                       <div className="flex-1 space-y-3">
                         <div className="grid grid-cols-2 gap-3">
@@ -784,3 +787,4 @@ export default function SchemaBuilderPage() {
     </div>
   );
 }
+

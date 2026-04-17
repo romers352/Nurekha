@@ -1862,6 +1862,10 @@ async def buy_custom_credits(request: Request):
     quantity = body.get("quantity", 0)
     payment_method = body.get("payment_method", "khalti")
 
+    # Defensive defaults — overwritten in the branches below; raise happens in `else`
+    price: int = 0
+    item_name: str = ""
+
     if credit_type == "messages":
         if not isinstance(quantity, int) or quantity < 100:
             raise HTTPException(status_code=400, detail="Minimum purchase is 100 message credits")

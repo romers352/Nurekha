@@ -21,8 +21,14 @@ export default function CustomerTicketsPage() {
 
   useEffect(() => {
     (async () => {
-      try { const { data } = await axios.get(`${API}/api/agents/${agentId}/customer-tickets`, { withCredentials: true }); setTickets(data); } catch {}
-      finally { setLoading(false); }
+      try {
+        const { data } = await axios.get(`${API}/api/agents/${agentId}/customer-tickets`, { withCredentials: true });
+        setTickets(data);
+      } catch (err) {
+        console.error("Failed to load tickets", err);
+      } finally {
+        setLoading(false);
+      }
     })();
   }, [agentId]);
 
@@ -34,15 +40,20 @@ export default function CustomerTicketsPage() {
       setTickets(prev => [data, ...prev]);
       setDialogOpen(false);
       setForm({ customer_name: "", phone: "", issue: "", category: "general", priority: "medium" });
-    } catch {}
-    finally { setSaving(false); }
+    } catch (err) {
+      console.error("Failed to create ticket", err);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleStatusChange = async (ticketId, status) => {
     try {
       const { data } = await axios.patch(`${API}/api/agents/${agentId}/customer-tickets/${ticketId}/status`, { status }, { withCredentials: true });
       setTickets(prev => prev.map(t => t.ticket_id === ticketId ? data : t));
-    } catch {}
+    } catch (err) {
+      console.error("Failed to update ticket status", err);
+    }
   };
 
   const filtered = tickets.filter(t => !filter || t.status === filter);

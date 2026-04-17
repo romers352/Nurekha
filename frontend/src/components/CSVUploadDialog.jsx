@@ -191,7 +191,7 @@ export default function CSVUploadDialog({ open, onClose, agentId, collectionName
               <div className="space-y-2 max-h-64 overflow-y-auto">
                 {detectedFields.map((field, index) => (
                   <div
-                    key={index}
+                    key={field.field_name || `field_${index}`}
                     className="flex items-center gap-3 p-3 border border-[#E7E5E4] rounded-lg bg-white"
                   >
                     <div className="flex-1">
@@ -229,7 +229,7 @@ export default function CSVUploadDialog({ open, onClose, agentId, collectionName
                     </thead>
                     <tbody className="divide-y divide-[#E7E5E4]">
                       {sampleData.map((row, idx) => (
-                        <tr key={idx}>
+                        <tr key={`row_${idx}_${Object.values(row).slice(0, 2).join("_")}`}>
                           {detectedFields.map((field) => (
                             <td key={field.field_name} className="px-3 py-2 text-[#0C0A09]">
                               {row[field.field_name] || "-"}

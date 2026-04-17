@@ -231,7 +231,7 @@ function ImageUploadField({ value, onChange }) {
     <div>
       <div className="grid grid-cols-3 gap-3">
         {images.map((url, index) => (
-          <div key={index} className="relative aspect-square rounded-lg border border-[#E7E5E4] overflow-hidden group">
+          <div key={url || `img_${index}`} className="relative aspect-square rounded-lg border border-[#E7E5E4] overflow-hidden group">
             <img src={url} alt={`Upload ${index + 1}`} className="w-full h-full object-cover" />
             <button
               type="button"

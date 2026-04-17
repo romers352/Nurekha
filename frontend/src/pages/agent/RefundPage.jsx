@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -24,7 +24,7 @@ export default function RefundPage() {
   const [processing, setProcessing] = useState(false);
   const [tab, setTab] = useState("refunds"); // "refunds" or "eligible"
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const [refundsRes, ordersRes] = await Promise.all([
         axios.get(`${API}/api/refunds?agent_id=${agentId}`, { withCredentials: true }),
@@ -34,9 +34,9 @@ export default function RefundPage() {
       setOrders(ordersRes.data);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
-  };
+  }, [agentId]);
 
-  useEffect(() => { fetchData(); }, [agentId]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   // Orders eligible for refund (paid, not already refunded)
   const eligibleOrders = orders.filter(

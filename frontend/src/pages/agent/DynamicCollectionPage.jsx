@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   Plus, Pencil, Trash2, Loader2, Search, Grid, List, AlertCircle,
@@ -48,6 +48,9 @@ export default function DynamicCollectionPage() {
     setFilterOpen(false);
   }, [agentId, collectionName]);
 
+  // NOTE: localStorage here stores ONLY column-visibility preferences
+  // (list of non-sensitive schema field names, e.g. ["name","price","sku"]).
+  // No PII, tokens, or auth data is ever stored here. This is safe.
   // Load visible columns from localStorage once schema is known
   useEffect(() => {
     if (!schema) return;
@@ -77,34 +80,6 @@ export default function DynamicCollectionPage() {
       localStorage.setItem(storageKey, JSON.stringify(visibleColumns));
     } catch (e) { /* ignore */ }
   }, [visibleColumns, schema, agentId]);
-
-  const fetchData = async () => {
-    try {
-      const schemasRes = await axios.get(`${API}/api/agents/${agentId}/schemas`, { withCredentials: true });
-      setAllSchemas(schemasRes.data || []);
-
-      if (!schemasRes.data || schemasRes.data.length === 0) {
-        setLoading(false);
-        return;
-      }
-
-      let targetSchema;
-      if (collectionName) targetSchema = schemasRes.data.find((s) => s.collection_name === collectionName);
-      if (!targetSchema) targetSchema = schemasRes.data[0];
-
-      setSchema(targetSchema);
-
-      const itemsRes = await axios.get(
-        `${API}/api/agents/${agentId}/collections/${targetSchema.collection_name}/items`,
-        { withCredentials: true }
-      );
-      setItems(itemsRes.data);
-    } catch (err) {
-      console.error("Failed to fetch data", err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Close switcher + columns menu on outside click
   useEffect(() => {
