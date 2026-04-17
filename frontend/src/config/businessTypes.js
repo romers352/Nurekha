@@ -18,7 +18,6 @@ const BIZ_CONFIG = {
     actionType: "order",
     hasRefunds: true,
     extraNav: [
-      { icon: Database, label: "Products", href: (id) => `/agent/${id}/data` },
       { icon: ClipboardList, label: "Orders", href: (id) => `/agent/${id}/orders` },
       { icon: RotateCcw, label: "Refunds", href: (id) => `/agent/${id}/refunds` },
     ],
@@ -31,7 +30,6 @@ const BIZ_CONFIG = {
     outputIcon: ClipboardList,
     actionType: "booking",
     extraNav: [
-      { icon: Database, label: "Rooms", href: (id) => `/agent/${id}/data` },
       { icon: ClipboardList, label: "Bookings", href: (id) => `/agent/${id}/bookings` },
     ],
   },
@@ -43,7 +41,6 @@ const BIZ_CONFIG = {
     outputIcon: ClipboardList,
     actionType: "booking",
     extraNav: [
-      { icon: Database, label: "Packages", href: (id) => `/agent/${id}/data` },
       { icon: ClipboardList, label: "Bookings", href: (id) => `/agent/${id}/bookings` },
     ],
   },
@@ -55,7 +52,6 @@ const BIZ_CONFIG = {
     outputIcon: Users,
     actionType: "lead",
     extraNav: [
-      { icon: Database, label: "Properties", href: (id) => `/agent/${id}/data` },
       { icon: Users, label: "Leads", href: (id) => `/agent/${id}/leads` },
     ],
   },
@@ -67,7 +63,6 @@ const BIZ_CONFIG = {
     outputIcon: ClipboardList,
     actionType: "ticket",
     extraNav: [
-      { icon: Database, label: "Plans", href: (id) => `/agent/${id}/data` },
       { icon: ClipboardList, label: "Tickets", href: (id) => `/agent/${id}/customer-tickets` },
     ],
   },
@@ -79,7 +74,6 @@ const BIZ_CONFIG = {
     outputIcon: ClipboardList,
     actionType: "ticket",
     extraNav: [
-      { icon: Database, label: "Plans", href: (id) => `/agent/${id}/data` },
       { icon: ClipboardList, label: "Tickets", href: (id) => `/agent/${id}/customer-tickets` },
     ],
   },
@@ -91,7 +85,6 @@ const BIZ_CONFIG = {
     outputIcon: ClipboardList,
     actionType: "order",
     extraNav: [
-      { icon: Database, label: "Menu Items", href: (id) => `/agent/${id}/data` },
       { icon: ClipboardList, label: "Orders", href: (id) => `/agent/${id}/orders` },
     ],
   },
@@ -103,7 +96,6 @@ const BIZ_CONFIG = {
     outputIcon: ClipboardList,
     actionType: "booking",
     extraNav: [
-      { icon: Database, label: "Services", href: (id) => `/agent/${id}/data` },
       { icon: ClipboardList, label: "Bookings", href: (id) => `/agent/${id}/bookings` },
     ],
   },
@@ -115,7 +107,6 @@ const BIZ_CONFIG = {
     outputIcon: Users,
     actionType: "lead",
     extraNav: [
-      { icon: Database, label: "Vehicles", href: (id) => `/agent/${id}/data` },
       { icon: Users, label: "Leads", href: (id) => `/agent/${id}/leads` },
     ],
   },
@@ -127,7 +118,6 @@ const BIZ_CONFIG = {
     outputIcon: Users,
     actionType: "lead",
     extraNav: [
-      { icon: Database, label: "Products", href: (id) => `/agent/${id}/data` },
       { icon: Users, label: "Leads", href: (id) => `/agent/${id}/leads` },
     ],
   },
@@ -139,7 +129,6 @@ const BIZ_CONFIG = {
     outputIcon: ClipboardList,
     actionType: "booking",
     extraNav: [
-      { icon: Database, label: "Packages", href: (id) => `/agent/${id}/data` },
       { icon: ClipboardList, label: "Bookings", href: (id) => `/agent/${id}/bookings` },
     ],
   },
@@ -151,7 +140,6 @@ const BIZ_CONFIG = {
     outputIcon: Users,
     actionType: "lead",
     extraNav: [
-      { icon: Database, label: "Courses", href: (id) => `/agent/${id}/data` },
       { icon: Users, label: "Leads", href: (id) => `/agent/${id}/leads` },
     ],
   },
@@ -163,7 +151,6 @@ const BIZ_CONFIG = {
     outputIcon: ClipboardList,
     actionType: "booking",
     extraNav: [
-      { icon: Database, label: "Doctors", href: (id) => `/agent/${id}/data` },
       { icon: ClipboardList, label: "Bookings", href: (id) => `/agent/${id}/bookings` },
     ],
   },

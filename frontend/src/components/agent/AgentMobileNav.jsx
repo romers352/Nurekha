@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
-import { LayoutDashboard, Plug, Brain, MessageSquare, Settings, ChevronLeft, Menu, X } from "lucide-react";
+import { LayoutDashboard, Plug, Brain, MessageSquare, Settings, ChevronLeft, Menu, X, ChevronDown, FileText, BookOpen } from "lucide-react";
 import { getBizConfig, getBizLabel } from "@/config/businessTypes";
 import axios from "axios";
 
@@ -11,6 +11,7 @@ export default function AgentMobileNav() {
   const location = useLocation();
   const [open, setOpen] = useState(false);
   const [agent, setAgent] = useState(null);
+  const [trainExpanded, setTrainExpanded] = useState(true);
 
   useEffect(() => {
     (async () => {
@@ -24,7 +25,17 @@ export default function AgentMobileNav() {
   const navItems = [
     { icon: LayoutDashboard, label: "Overview", href: `/agent/${agentId}` },
     { icon: Plug, label: "Connect Channels", href: `/agent/${agentId}/connect` },
-    { icon: Brain, label: "Train Agent", href: `/agent/${agentId}/train` },
+    { 
+      icon: Brain, 
+      label: "Train Agent", 
+      href: `/agent/${agentId}/train`,
+      isExpandable: true,
+      children: [
+        { icon: BookOpen, label: "FAQs", href: `/agent/${agentId}/faqs` },
+        { icon: FileText, label: "Documents", href: `/agent/${agentId}/docs` },
+        ...(bizConfig?.dataLabel ? [{ icon: bizConfig.dataIcon, label: bizConfig.dataLabel, href: `/agent/${agentId}/data` }] : []),
+      ]
+    },
     { icon: MessageSquare, label: "Business Chat", href: `/agent/${agentId}/chat` },
     ...(bizConfig?.extraNav?.map(n => ({ icon: n.icon, label: n.label, href: n.href(agentId) })) || []),
     { icon: Settings, label: "Agent Settings", href: `/agent/${agentId}/settings` },
@@ -64,6 +75,46 @@ export default function AgentMobileNav() {
               {navItems.map(item => {
                 const Icon = item.icon;
                 const active = isActive(item.href);
+                
+                // Handle expandable items
+                if (item.isExpandable) {
+                  const hasActiveChild = item.children?.some(child => isActive(child.href));
+                  const isTrainActive = active || hasActiveChild;
+                  
+                  return (
+                    <div key={item.href}>
+                      <button
+                        onClick={() => setTrainExpanded(!trainExpanded)}
+                        className={`w-full flex items-center gap-3 h-11 px-3 rounded-lg transition-colors text-sm ${isTrainActive ? "bg-[#F5F0EB] text-[#1C1917] font-medium" : "text-[#57534E] hover:bg-[#FAFAFA]"}`}
+                      >
+                        <Icon className="w-[18px] h-[18px]" />
+                        <span className="flex-1 text-left">{item.label}</span>
+                        <ChevronDown className={`w-4 h-4 transition-transform ${trainExpanded ? "" : "-rotate-90"}`} />
+                      </button>
+                      {trainExpanded && (
+                        <div className="pl-6 space-y-0.5 mt-0.5">
+                          {item.children?.map(child => {
+                            const ChildIcon = child.icon;
+                            const childActive = isActive(child.href);
+                            return (
+                              <Link
+                                key={child.href}
+                                to={child.href}
+                                onClick={() => setOpen(false)}
+                                className={`flex items-center gap-3 h-10 px-3 rounded-lg transition-colors text-sm ${childActive ? "bg-[#FAFAFA] text-[#1C1917] font-medium" : "text-[#78716C] hover:bg-[#FAFAFA]"}`}
+                              >
+                                <ChildIcon className="w-4 h-4" />
+                                {child.label}
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+                
+                // Regular items
                 return (
                   <Link key={item.href} to={item.href} onClick={() => setOpen(false)} className={`flex items-center gap-3 h-11 px-3 rounded-lg transition-colors text-sm ${active ? "bg-[#F5F0EB] text-[#1C1917] font-medium" : "text-[#57534E] hover:bg-[#FAFAFA]"}`}>
                     <Icon className="w-[18px] h-[18px]" />{item.label}
