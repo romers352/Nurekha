@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Plus, Pencil, Trash2, Loader2, Search, Grid, List, AlertCircle, Upload, Download } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Search, Grid, List, AlertCircle, Upload, Download, Filter, X } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import DynamicFormField from "@/components/DynamicFormField";
 import CSVUploadDialog from "@/components/CSVUploadDialog";
@@ -9,12 +9,14 @@ import axios from "axios";
 const API = process.env.REACT_APP_BACKEND_URL;
 
 export default function DynamicCollectionPage() {
-  const { agentId } = useParams();
+  const { agentId, collectionName } = useParams();
   const [schema, setSchema] = useState(null);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [view, setView] = useState("table"); // 'table' or 'card'
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [activeFilters, setActiveFilters] = useState({}); // { field_name: value }
 
   // Dialog state
   const [formOpen, setFormOpen] = useState(false);
@@ -26,7 +28,7 @@ export default function DynamicCollectionPage() {
 
   useEffect(() => {
     fetchData();
-  }, [agentId]);
+  }, [agentId, collectionName]);
 
   const fetchData = async () => {
     try {
@@ -40,13 +42,20 @@ export default function DynamicCollectionPage() {
         return;
       }
 
-      // Use first schema (in Phase 5 we'll add collection switcher)
-      const firstSchema = schemasRes.data[0];
-      setSchema(firstSchema);
+      // Find schema by collection name (if provided) or use first
+      let targetSchema;
+      if (collectionName) {
+        targetSchema = schemasRes.data.find(s => s.collection_name === collectionName);
+      }
+      if (!targetSchema) {
+        targetSchema = schemasRes.data[0];
+      }
+      
+      setSchema(targetSchema);
 
       // Fetch items for this collection
       const itemsRes = await axios.get(
-        `${API}/api/agents/${agentId}/collections/${firstSchema.collection_name}/items`,
+        `${API}/api/agents/${agentId}/collections/${targetSchema.collection_name}/items`,
         { withCredentials: true }
       );
       setItems(itemsRes.data);

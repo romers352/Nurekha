@@ -78,6 +78,7 @@ function AppRouter() {
         <Route path="docs" element={<DocumentsPage />} />
         <Route path="chat" element={<BusinessChatPage />} />
         <Route path="data" element={<DynamicCollectionPage />} />
+        <Route path="collection/:collectionName" element={<DynamicCollectionPage />} />
         <Route path="orders" element={<AgentOrdersPage />} />
         <Route path="refunds" element={<RefundPage />} />
         <Route path="rooms" element={<HotelRoomsPage />} />

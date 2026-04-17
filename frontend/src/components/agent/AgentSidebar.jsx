@@ -17,6 +17,7 @@ export default function AgentSidebar() {
   const [agent, setAgent] = useState(null);
   const [aiActive, setAiActive] = useState(true);
   const [trainExpanded, setTrainExpanded] = useState(true); // Train Agent submenu state
+  const [schemas, setSchemas] = useState([]); // Collections/schemas
   const width = collapsed ? 64 : 256;
 
   useEffect(() => {
@@ -25,6 +26,10 @@ export default function AgentSidebar() {
         const { data } = await axios.get(`${API}/api/agents/${agentId}`, { withCredentials: true });
         setAgent(data);
         setAiActive(data.status === "active");
+
+        // Fetch schemas for this agent
+        const schemasRes = await axios.get(`${API}/api/agents/${agentId}/schemas`, { withCredentials: true });
+        setSchemas(schemasRes.data || []);
       } catch {}
     })();
   }, [agentId]);
@@ -45,6 +50,7 @@ export default function AgentSidebar() {
                           location.pathname.includes('/faqs') || 
                           location.pathname.includes('/docs') ||
                           location.pathname.includes('/schema-builder') ||
+                          location.pathname.includes('/collection') ||
                           location.pathname.includes('/data');
 
   // Auto-expand Train Agent if user is in that section
@@ -69,7 +75,12 @@ export default function AgentSidebar() {
         { icon: Database, label: "Schema Builder", href: `/agent/${agentId}/schema-builder` },
         { icon: BookOpen, label: "FAQs", href: `/agent/${agentId}/faqs` },
         { icon: FileText, label: "Documents", href: `/agent/${agentId}/docs` },
-        ...(bizConfig?.dataLabel ? [{ icon: bizConfig.dataIcon, label: bizConfig.dataLabel, href: `/agent/${agentId}/data` }] : []),
+        // Dynamic collections from schemas
+        ...schemas.map(schema => ({
+          icon: Database,
+          label: schema.display_name,
+          href: `/agent/${agentId}/collection/${schema.collection_name}`
+        })),
       ]
     },
     { icon: MessageSquare, label: "Business Chat", href: `/agent/${agentId}/chat` },
