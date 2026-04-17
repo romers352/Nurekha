@@ -26,6 +26,7 @@ import FAQsPage from "@/pages/agent/FAQsPage";
 import DocumentsPage from "@/pages/agent/DocumentsPage";
 import SchemaBuilderPage from "@/pages/agent/SchemaBuilderPage";
 import DynamicCollectionPage from "@/pages/agent/DynamicCollectionPage";
+import CollectionsOverviewPage from "@/pages/agent/CollectionsOverviewPage";
 import AgentOrdersPage from "@/pages/agent/AgentOrdersPage";
 import AgentSettingsPage from "@/pages/agent/AgentSettingsPage";
 import HotelRoomsPage from "@/pages/agent/HotelRoomsPage";
@@ -77,7 +78,7 @@ function AppRouter() {
         <Route path="faqs" element={<FAQsPage />} />
         <Route path="docs" element={<DocumentsPage />} />
         <Route path="chat" element={<BusinessChatPage />} />
-        <Route path="data" element={<DynamicCollectionPage />} />
+        <Route path="data" element={<CollectionsOverviewPage />} />
         <Route path="collection/:collectionName" element={<DynamicCollectionPage />} />
         <Route path="orders" element={<AgentOrdersPage />} />
         <Route path="refunds" element={<RefundPage />} />

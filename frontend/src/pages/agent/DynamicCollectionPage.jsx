@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
-import { Plus, Pencil, Trash2, Loader2, Search, Grid, List, AlertCircle, Upload, Download, Filter, X } from "lucide-react";
+import { useEffect, useState, useRef } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { Plus, Pencil, Trash2, Loader2, Search, Grid, List, AlertCircle, Upload, Download, Filter, X, ChevronDown } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import DynamicFormField from "@/components/DynamicFormField";
 import CSVUploadDialog from "@/components/CSVUploadDialog";
@@ -10,13 +10,17 @@ const API = process.env.REACT_APP_BACKEND_URL;
 
 export default function DynamicCollectionPage() {
   const { agentId, collectionName } = useParams();
+  const navigate = useNavigate();
   const [schema, setSchema] = useState(null);
+  const [allSchemas, setAllSchemas] = useState([]);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [view, setView] = useState("table"); // 'table' or 'card'
   const [filterOpen, setFilterOpen] = useState(false);
   const [activeFilters, setActiveFilters] = useState({}); // { field_name: value }
+  const [switcherOpen, setSwitcherOpen] = useState(false);
+  const switcherRef = useRef(null);
 
   // Dialog state
   const [formOpen, setFormOpen] = useState(false);
@@ -36,6 +40,8 @@ export default function DynamicCollectionPage() {
       const schemasRes = await axios.get(`${API}/api/agents/${agentId}/schemas`, {
         withCredentials: true,
       });
+
+      setAllSchemas(schemasRes.data || []);
 
       if (schemasRes.data.length === 0) {
         setLoading(false);
@@ -64,6 +70,22 @@ export default function DynamicCollectionPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Close switcher on outside click
+  useEffect(() => {
+    const onClick = (e) => {
+      if (switcherRef.current && !switcherRef.current.contains(e.target)) {
+        setSwitcherOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, []);
+
+  const switchCollection = (targetName) => {
+    setSwitcherOpen(false);
+    navigate(`/agent/${agentId}/collection/${targetName}`);
   };
 
   const openCreateDialog = () => {
@@ -232,9 +254,56 @@ export default function DynamicCollectionPage() {
   return (
     <div className="min-h-screen bg-[#FAFAFA]">
       <div className="px-6 lg:px-8 pt-6 pb-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="font-serif text-[28px] text-[#0C0A09]">{schema.display_name}</h1>
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="min-w-0 flex-1">
+            {/* Collection switcher dropdown */}
+            <div className="relative inline-block" ref={switcherRef}>
+              <button
+                onClick={() => setSwitcherOpen(!switcherOpen)}
+                className="flex items-center gap-2 group"
+                data-testid="collection-switcher-btn"
+              >
+                <h1 className="font-serif text-[28px] text-[#0C0A09] truncate">{schema.display_name}</h1>
+                {allSchemas.length > 1 && (
+                  <ChevronDown className={`w-5 h-5 text-[#57534E] group-hover:text-[#0C0A09] transition-transform ${switcherOpen ? "rotate-180" : ""}`} />
+                )}
+              </button>
+              {switcherOpen && allSchemas.length > 1 && (
+                <div
+                  className="absolute top-full left-0 mt-2 w-72 bg-white border border-[#E7E5E4] rounded-xl shadow-lg z-10 overflow-hidden"
+                  data-testid="collection-switcher-dropdown"
+                >
+                  <div className="px-3 py-2 border-b border-[#F5F5F4] bg-[#FAFAFA]">
+                    <p className="text-[10px] font-medium tracking-wide text-[#A8A29E] uppercase">Switch Collection</p>
+                  </div>
+                  <div className="max-h-80 overflow-y-auto py-1">
+                    {allSchemas.map((s) => {
+                      const isActive = s.collection_name === schema.collection_name;
+                      return (
+                        <button
+                          key={s.collection_name}
+                          onClick={() => switchCollection(s.collection_name)}
+                          className={`w-full text-left px-3 py-2.5 hover:bg-[#FAFAFA] transition-colors flex items-center justify-between gap-2 ${
+                            isActive ? "bg-[#F5F0EB]" : ""
+                          }`}
+                          data-testid={`switch-to-${s.collection_name}`}
+                        >
+                          <div className="min-w-0">
+                            <p className={`text-sm truncate ${isActive ? "font-medium text-[#0C0A09]" : "text-[#57534E]"}`}>
+                              {s.display_name}
+                            </p>
+                            <p className="text-xs text-[#A8A29E] font-mono truncate">{s.collection_name}</p>
+                          </div>
+                          <span className="text-xs text-[#A8A29E] bg-[#F5F5F4] rounded-full px-2 py-0.5 shrink-0">
+                            {s.item_count ?? 0}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
             <p className="text-sm text-[#57534E] mt-1">
               {items.length} {items.length === 1 ? "item" : "items"}
             </p>

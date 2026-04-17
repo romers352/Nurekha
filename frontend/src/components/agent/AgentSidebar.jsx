@@ -79,7 +79,8 @@ export default function AgentSidebar() {
         ...schemas.map(schema => ({
           icon: Database,
           label: schema.display_name,
-          href: `/agent/${agentId}/collection/${schema.collection_name}`
+          href: `/agent/${agentId}/collection/${schema.collection_name}`,
+          badge: schema.item_count ?? 0,
         })),
       ]
     },
@@ -196,7 +197,12 @@ export default function AgentSidebar() {
                                   className={`flex items-center gap-3 h-9 px-3 rounded-lg transition-colors text-sm ${childActive ? "bg-[#FAFAFA] text-[#1C1917] font-medium" : "text-[#78716C] hover:bg-[#FAFAFA] hover:text-[#0C0A09]"}`}
                                 >
                                   <ChildIcon className="w-4 h-4 shrink-0" />
-                                  <span className="truncate">{child.label}</span>
+                                  <span className="truncate flex-1">{child.label}</span>
+                                  {typeof child.badge === "number" && (
+                                    <span className="text-[10px] text-[#78716C] bg-[#F5F5F4] rounded-full px-1.5 py-0.5 shrink-0 min-w-[20px] text-center">
+                                      {child.badge}
+                                    </span>
+                                  )}
                                 </Link>
                               );
                             })}
