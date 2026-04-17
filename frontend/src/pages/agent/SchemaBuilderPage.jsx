@@ -25,6 +25,9 @@ export default function SchemaBuilderPage() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSchema, setEditingSchema] = useState(null);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState(null);
+  const [initializing, setInitializing] = useState(false);
   
   // Form state
   const [collectionName, setCollectionName] = useState("");
@@ -124,6 +127,16 @@ export default function SchemaBuilderPage() {
       return;
     }
 
+    // Show confirmation if editing existing schema
+    if (editingSchema) {
+      setConfirmAction(() => () => saveSchema());
+      setConfirmDialogOpen(true);
+    } else {
+      saveSchema();
+    }
+  };
+
+  const saveSchema = async () => {
     setSaving(true);
     try {
       await axios.post(
@@ -140,12 +153,30 @@ export default function SchemaBuilderPage() {
       );
       
       setDialogOpen(false);
+      setConfirmDialogOpen(false);
       fetchSchemas();
     } catch (err) {
       console.error("Failed to save schema", err);
       alert(err.response?.data?.detail || "Failed to save schema");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const initializeDefaultSchema = async () => {
+    setInitializing(true);
+    try {
+      await axios.post(
+        `${API}/api/agents/${agentId}/schemas/initialize-default`,
+        {},
+        { withCredentials: true }
+      );
+      fetchSchemas();
+    } catch (err) {
+      console.error("Failed to initialize default schema", err);
+      alert(err.response?.data?.detail || "Failed to initialize default schema");
+    } finally {
+      setInitializing(false);
     }
   };
 
@@ -184,13 +215,25 @@ export default function SchemaBuilderPage() {
               Create custom data structures for your agent
             </p>
           </div>
-          <button
-            onClick={openCreateDialog}
-            className="h-10 px-4 bg-[#0C0A09] text-white rounded-lg text-sm font-medium hover:bg-[#1C1917] flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            New Collection
-          </button>
+          <div className="flex items-center gap-2">
+            {schemas.length === 0 && (
+              <button
+                onClick={initializeDefaultSchema}
+                disabled={initializing}
+                className="h-10 px-4 border border-[#E7E5E4] bg-white text-[#0C0A09] rounded-lg text-sm font-medium hover:bg-[#FAFAFA] flex items-center gap-2"
+              >
+                {initializing && <Loader2 className="w-4 h-4 animate-spin" />}
+                Initialize Default Schema
+              </button>
+            )}
+            <button
+              onClick={openCreateDialog}
+              className="h-10 px-4 bg-[#0C0A09] text-white rounded-lg text-sm font-medium hover:bg-[#1C1917] flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              New Collection
+            </button>
+          </div>
         </div>
       </div>
 
@@ -534,6 +577,49 @@ export default function SchemaBuilderPage() {
               {saving && <Loader2 className="w-4 h-4 animate-spin" />}
               <Save className="w-4 h-4" />
               {editingSchema ? "Update Schema" : "Create Schema"}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmation Dialog */}
+      <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-[#F59E0B]" />
+              Confirm Schema Update
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-[#57534E]">
+              You are about to update this schema. This may affect existing data:
+            </p>
+            <ul className="list-disc list-inside space-y-1 text-sm text-[#78716C]">
+              <li>Adding new fields: Existing items won't have values for new fields</li>
+              <li>Removing fields: Data in removed fields will be lost</li>
+              <li>Changing field types: May cause data format issues</li>
+            </ul>
+            <div className="bg-[#FEF3C7] border border-[#FDE047] rounded-lg p-3">
+              <p className="text-xs text-[#78350F] font-medium">
+                ⚠️ It's recommended to export your data before making major schema changes.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <button
+              onClick={() => setConfirmDialogOpen(false)}
+              className="h-10 px-4 border border-[#E7E5E4] rounded-lg text-sm font-medium hover:bg-[#FAFAFA]"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => confirmAction && confirmAction()}
+              disabled={saving}
+              className="h-10 px-4 bg-[#F59E0B] text-white rounded-lg text-sm font-medium hover:bg-[#D97706] disabled:opacity-50 flex items-center gap-2"
+            >
+              {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+              Yes, Update Schema
             </button>
           </DialogFooter>
         </DialogContent>

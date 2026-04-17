@@ -25,6 +25,7 @@ import AgentDataPage from "@/pages/agent/AgentDataPage";
 import FAQsPage from "@/pages/agent/FAQsPage";
 import DocumentsPage from "@/pages/agent/DocumentsPage";
 import SchemaBuilderPage from "@/pages/agent/SchemaBuilderPage";
+import DynamicCollectionPage from "@/pages/agent/DynamicCollectionPage";
 import AgentOrdersPage from "@/pages/agent/AgentOrdersPage";
 import AgentSettingsPage from "@/pages/agent/AgentSettingsPage";
 import HotelRoomsPage from "@/pages/agent/HotelRoomsPage";
@@ -76,7 +77,7 @@ function AppRouter() {
         <Route path="faqs" element={<FAQsPage />} />
         <Route path="docs" element={<DocumentsPage />} />
         <Route path="chat" element={<BusinessChatPage />} />
-        <Route path="data" element={<AgentDataPage />} />
+        <Route path="data" element={<DynamicCollectionPage />} />
         <Route path="orders" element={<AgentOrdersPage />} />
         <Route path="refunds" element={<RefundPage />} />
         <Route path="rooms" element={<HotelRoomsPage />} />
